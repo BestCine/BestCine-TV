@@ -28,10 +28,11 @@
 > ⚠️ **NÃO SABE QUAL BAIXAR? SÓ ENCONTRE SEU APARELHO NA LISTA ABAIXO E CLIQUE NO LINK AZUL!**
 
 ### 1️⃣ Android TV / Google TV / Mi Box / Fire TV Stick / TV Box (TCL, Philips, Sony, Philco, Xiaomi, Chromecast…)
-Se o seu aparelho usa **Android TV, Google TV ou Fire TV**, baixe o APK único abaixo. Ele inclui suporte para processadores ARM de 32 e 64 bits:
+Se o seu aparelho usa **Android TV, Google TV ou Fire TV**, baixe o APK único abaixo. Ele exige **Android 7 ou superior** e inclui processadores ARM de 32 e 64 bits:
 
 👉 **[⬇️ BAIXAR BESTCINE TV PARA ANDROID TV / GOOGLE TV / MI BOX / FIRE TV (.apk)](https://github.com/BestCine/BestCine-TV/releases/latest/download/BestCineTV-android-lite-universal.apk)**
 
+- O arquivo `.sha256` fica disponível junto do APK para conferir a integridade do download.
 - **Como instalar:** baixe pelo app **Downloader** (colando o link acima), **Send Files to TV** ou pendrive USB e abra o arquivo.
 - **Como entrar na sua conta:** abra o BestCine TV, aponte a câmera do celular para o **QR Code** na TV e toque em **Autorizar TV** (não precisa digitar senha no controle!).
 
