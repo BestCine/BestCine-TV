@@ -28,13 +28,13 @@
 > ⚠️ **NÃO SABE QUAL BAIXAR? SÓ ENCONTRE SEU APARELHO NA LISTA ABAIXO E CLIQUE NO LINK AZUL!**
 
 ### 1️⃣ Android TV / Google TV / Mi Box / Fire TV Stick / TV Box (TCL, Philips, Sony, Philco, Xiaomi, Chromecast…)
-Se o seu aparelho usa **Android TV, Google TV ou Fire TV**, **CLIQUE NO LINK ABAIXO** (funciona em 99% das TVs e Boxes — inclusive **TCL C6K**, **Mi Box**, **Mi TV Stick** e **Fire TV Stick**):
+Se o seu aparelho usa **Android TV, Google TV ou Fire TV**, baixe pela Central Oficial (exige **Android 7 ou superior**):
 
-👉 **[⬇️ BAIXAR BESTCINE TV PARA ANDROID TV / GOOGLE TV / MI BOX / FIRE TV (.apk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.5/BestCineTV-1.1.5-android-lite-armv7.apk)**
+👉 **[⬇️ BAIXAR BESTCINE TV PARA ANDROID TV / GOOGLE TV / MI BOX / FIRE TV (bestcine.github.io)](https://bestcine.github.io)**
 
+- A partir da próxima build (`v1.1.6+`), o APK passa a ser **único universal** (`BestCineTV-android-lite-universal.apk`, com ARM 32 e 64 bits juntos) acompanhado de `.sha256` (`sha256sum -c BestCineTV-android-lite-universal.apk.sha256`).
 - **Como instalar:** baixe pelo app **Downloader** (colando o link acima), **Send Files to TV** ou pendrive USB e abra o arquivo.
 - **Como entrar na sua conta:** abra o BestCine TV, aponte a câmera do celular para o **QR Code** na TV e toque em **Autorizar TV** (não precisa digitar senha no controle!).
-- *Opcional (apenas para aparelhos Android TV 64-bit como Nvidia Shield / Chromecast 4K / Fire TV 4K Max 2ª ger.):* [baixar versão arm64](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.5/BestCineTV-1.1.5-android-lite-arm64.apk) *(na dúvida, use o link principal acima — ele funciona em todos!)*.
 
 ---
 
