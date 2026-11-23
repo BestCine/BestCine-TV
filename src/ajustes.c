@@ -725,8 +725,11 @@ typedef enum {
   // Hero logo and information size (0 Normal, 1 Grande, 2 Muito grande). LOCAL, append-only.
   AJ_HERO_TAMANHO,
   AJ_HERO_PASTA_DETALHES, // Device-local folder hero details, append-only; on by default.
+  AJ_BC_CONTA,            // BestCine TV: conta conectada, plano e acao de atualizar catalogos
+  AJ_BC_DNS,              // BestCine TV: DNS Anti-Bloqueio DoH (0 Cloudflare, 1 Google, 2 Sistema)
   AJ_N
 } OpcaoId;
+static const char *V_BC_DNS[] = { "Cloudflare (1.1.1.1)", "Google (8.8.8.8)", "DNS do sistema" };
 _Static_assert(DEBRID_RD == 0 && DEBRID_TB == 1 && DEBRID_PM == 2 && DEBRID_AD == 3,
                "Native provider Settings caps retain their persisted service IDs");
 
@@ -1863,6 +1866,8 @@ static const Opcao OPCOES[AJ_N] = {
   ESC("Suavizar degradês", V_DEGRADES, 3),
   ESC("Tamanho do destaque", V_HERO_TAMANHO, 3),       // local: heroSizeLocal
   ESC("Mostrar detalhes da pasta no destaque", V_LIGA, 2),
+  ACAO("Conta BestCine"),
+  ESC("DNS Anti-Bloqueio (DoH)", V_BC_DNS, 3),
 };
 
 // Nome de cada opcao no arquivo. O formato era POSICIONAL — uma linha por
@@ -2196,6 +2201,8 @@ static const char *CHAVE[] = {
   "suavizarDegradesLocal",
   "heroSizeLocal",
   "heroFolderDetailsLocal",
+  "-bestcineConta",
+  "bestcineDnsLocal",
 };
 // QUATRO VETORES PARALELOS indexados pelo mesmo enum AJ_*: OPCOES, CHAVE,
 // valor e as secoes. OPCOES ja e declarado [AJ_N], e `valor` aceita inicializacao
@@ -3593,6 +3600,7 @@ int ajustes_hero_notas(void)   { return lig(AJ_HERO_NOTAS); }
 int ajustes_hero_ano(void)     { return lig(AJ_HERO_ANO); }
 int ajustes_hero_duracao(void) { return lig(AJ_HERO_DURACAO); }
 int ajustes_hero_pasta_detalhes(void) { return lig(AJ_HERO_PASTA_DETALHES); }
+int ajustes_bc_dns(void) { int v = valor[AJ_BC_DNS]; return (v >= 0 && v <= 2) ? v : 0; }
 int ajustes_hero_cheio(void)          { return lig(AJ_HERO_CHEIO); }
 int ajustes_hero_sinopse_grande(void) { return valor[AJ_HERO_SINOPSE_TAM] == 1 || ajustes_hero_tamanho() > 0; }
 float ajustes_hero_escala_logo(void) { static const float e[3] = { 1.0f, 1.25f, 1.5f }; return e[ajustes_hero_tamanho()]; }
@@ -4810,6 +4818,7 @@ void ajustes_dir(const char *dir) {
     gfx_escala_txt_definir(ajustes_escala_texto());
     interfaceAplicar();
     ajEpgMemoriaAplicar();
+    rede_definir_dns(ajustes_bc_dns());
     legenda2_atualizar_offset_manual(ajustes_leg2_atraso());
     ajSombraSync();
     return;
@@ -5188,6 +5197,7 @@ void ajustes_dir(const char *dir) {
   if (valor[AJ_TEX_MB] > 0) tex_definir_orcamento_mb(ajustes_tex_mb());
   pstAplicar();
   ajEpgMemoriaAplicar();
+  rede_definir_dns(ajustes_bc_dns());
   legenda2_atualizar_offset_manual(ajustes_leg2_atraso());
   ppReconciliar();
   ajSombraSync();   // o que veio do disco nao e mudanca de ninguem
@@ -6017,6 +6027,7 @@ static int somenteDesteAparelho(int op) {
     case AJ_HERO_SINOPSE_TAM:
     case AJ_HERO_TAMANHO:
     case AJ_HERO_PASTA_DETALHES:
+    case AJ_BC_DNS:
     case AJ_HERO_ARTE_DIF:
     case AJ_HERO_GENERO:
     case AJ_HERO_SINOPSE: case AJ_HERO_NOTAS: case AJ_HERO_ANO: case AJ_HERO_DURACAO: /* o web nao tem */
@@ -7286,6 +7297,18 @@ static const char *textoLeitura(int op) {
   //
   // Regra para quem editar esta funcao: se o texto aparece na lista de Ajustes,
   // ele e interface. Nao ha valor "tecnico demais para traduzir" aqui.
+  if (op == AJ_BC_CONTA) {
+    if (!sessao_bc_ativa()) return i18n("Não conectado");
+    {
+      const char *nome = sessao_bc_nome();
+      const char *email = sessao_bc_email();
+      const char *plano = sessao_bc_plano();
+      const char *id = (nome && *nome) ? nome : (email && *email) ? email : "BestCine";
+      if (plano && *plano) snprintf(buf, sizeof buf, "%s · %s", id, plano);
+      else snprintf(buf, sizeof buf, "%s", id);
+      return buf;
+    }
+  }
   if (op == AJ_SYNC) {
     switch (sync_estado()) {
       case SYNC_RODANDO: return i18n("sincronizando…");
@@ -8085,7 +8108,9 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_ANIM: return "Use Reduzidas para movimentos mais discretos ao navegar pela interface.";
     case AJ_RESOLUCAO: return "Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.";
     case AJ_PERFIL_ATIVO: return "Perfil em uso nesta TV. Trocar de perfil é feito na tela de perfis, ao abrir o app.";
-    case AJ_SYNC: return "Estado da última troca de dados com a sua conta: addons, progresso, coleções e preferências.";
+    case AJ_BC_CONTA: return "Sua conta BestCine conectada nesta TV. Pressione OK para atualizar sua assinatura e os catálogos BestCine agora.";
+    case AJ_BC_DNS: return "Ignora o DNS bloqueado da operadora usando DNS criptografado (DoH). Cloudflare 1.1.1.1 é recomendado contra bloqueios.";
+    case AJ_SYNC: return "Estado da última sincronização com o BestCine. Pressione OK para atualizar os catálogos agora.";
     case AJ_ADDONS: return "Abre a lista de addons da sua conta, para ligar e desligar cada um nesta TV.";
     case AJ_PLUGINS: return "Scrapers em JavaScript dos repositórios de plugins do Nuvio, como mais uma fonte na lista, ao lado dos add-ons. Os repositórios vêm da sua conta. Desligado por padrão.";
     case AJ_TRAKT: return "Conecta a sua conta do Trakt para marcar o que assistiu e usar a sua lista.";
@@ -8099,7 +8124,7 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_ATUALIZAR:
       return atualizacao_nova()[0]
         ? "Abre o cartão da versão nova, com o que mudou e o botão de instalar."
-        : "Procura agora uma versão nova do Nuvio. Se houver, abre o cartão com o que mudou e o botão de instalar. O app também confere sozinho a cada 6 horas.";
+        : "Procura agora uma versão nova do BestCine TV. Se houver, abre o cartão com o que mudou e o botão de instalar. O app também confere sozinho a cada 6 horas.";
     case AJ_VER_REGISTRO: return "Abre o registro do app por cima desta tela, ao vivo: o mesmo painel do botão vermelho do controle, para quem não tem esse botão.";
 #ifdef NV_ANDROID
     case AJ_BAIXAR_REGISTRO: return "Salva o registro desta sessão em um arquivo de texto, sem senhas nem chaves.";
@@ -8157,6 +8182,19 @@ static const char *ajudaOpcaoBase(int op) {
 static const char *ajudaOpcao(int op) {
   const char *base = ajudaOpcaoBase(op);
   static char b[2048];
+  if (op == AJ_BC_CONTA && sessao_bc_ativa()) {
+    const char *nome = sessao_bc_nome();
+    const char *email = sessao_bc_email();
+    const char *plano = sessao_bc_plano();
+    const char *venc = sessao_bc_vencimento();
+    snprintf(b, sizeof b, "%s%s%s%s%s%s%s%s%s",
+             (nome && *nome) ? "Usuário: " : "", (nome && *nome) ? nome : "",
+             (email && *email) ? "\nConta: " : "", (email && *email) ? email : "",
+             (plano && *plano) ? "\nPlano: " : "", (plano && *plano) ? plano : "",
+             (venc && *venc) ? " · " : "", (venc && *venc) ? venc : "",
+             "\nPressione OK para atualizar sua conta e os catálogos BestCine agora.");
+    return b;
+  }
   // O endereco da pagina vai junto da ajuda, ao vivo (muda com o IP da TV).
   if (op == AJ_LOG_REDE && logrede_url()[0]) {
     snprintf(b, sizeof b, "%s\n%s", i18n(base), logrede_url());
@@ -9663,6 +9701,7 @@ static int definirValorDireto(int op, int novo) {
     desc_refazer_continuar();
   if (op == AJ_TEX_MB) tex_definir_orcamento_mb(ajustes_tex_mb());
   if (op == AJ_EPG_MEMORIA) ajEpgMemoriaAplicar();
+  if (op == AJ_BC_DNS) rede_definir_dns(novo);
   // Picking 4K again = try again: forget that this TV did not hold it.
   if (op == AJ_RESOLUCAO && novo == RES_4K) {
     char *m = dados_ler(RES_ARQ_RECUO);
@@ -9842,6 +9881,13 @@ static void eventoTela(const SDL_Event *e) {
     if (focoOp == AJ_NOVIDADES20) { pediuNovidades20 = 1; return; }
     if (focoOp == AJ_APOIAR) { apoioAbrir(); return; }
     if (focoOp == AJ_ADDONS) { pediuAddons = 1; return; }
+    if (focoOp == AJ_BC_CONTA || focoOp == AJ_SYNC) {
+      if (sessao_logada()) {
+        sync_iniciar();
+        uxNotificar("Atualizando conta e catálogos BestCine…");
+      }
+      return;
+    }
     if (focoOp == AJ_PLUGINS) { pediuPlugins = 1; return; }
     if (focoOp == AJ_FILTROS_FONTES) { ffAbrir(); return; }
     if (focoOp == AJ_FALHA_PROVEDOR_ORDEM || focoOp == AJ_FALHA_ADDON_ORDEM) { faAbrir(focoOp == AJ_FALHA_PROVEDOR_ORDEM); return; }
@@ -10804,7 +10850,7 @@ static AjPreview familiaPreviaOpcao(int op) {
     case AJ_ESMAECER: case AJ_BRILHO_PLAYER: case AJ_HDR_UI: case AJ_MANTER_VIDEO:
     case AJ_DESCANSO_ESTILO: case AJ_DESCANSO_FONTE:
       return AJPV_INTERFACE;
-    case AJ_PERFIL_ATIVO: case AJ_SYNC: case AJ_SAIR:
+    case AJ_PERFIL_ATIVO: case AJ_SYNC: case AJ_BC_CONTA: case AJ_BC_DNS: case AJ_SAIR:
     case AJ_PERFIL_PESQ: case AJ_PERFIL_EDITAR: case AJ_PERFIL_INFANTIL: case AJ_ADDONS_PRINCIPAL: case AJ_PROVEDORES_ESCOPO: case AJ_ENQUETES:
       return AJPV_CONTA;
     case AJ_SALVOS_DEST: case AJ_TRAKT: case AJ_SIMKL: case AJ_DISCORD: case AJ_HIST_CONTA: case AJ_SOCIAL:

@@ -243,10 +243,12 @@ static const Item TELA[] = {
       OPC(AJ_HERO_TRAILER_ESPERA), OPC(AJ_TRAILER_QUAL), OPC(AJ_TRAILER_ASPECTO),
 
   // ---- CONTA E SISTEMA -----------------------------------------------------------
-  SEC("Conta e serviços", "Perfil, sincronização, Trakt, Simkl e avisos", "aj_user-round"),
+  SEC("Conta e serviços", "Conta BestCine, DNS anti-bloqueio, perfil, Trakt e Simkl", "aj_user-round"),
+    ROT("Conta BestCine"),
+      OPC(AJ_BC_CONTA), OPC(AJ_SYNC), OPC(AJ_BC_DNS), OPC(AJ_SAIR),
     ROT("Perfil"),
-      OPC(AJ_PERFIL_ATIVO), OPC(AJ_SYNC),
-      OPC(AJ_PERFIL_PESQ), OPC(AJ_PERFIL_EDITAR), OPC(AJ_PERFIL_INFANTIL), OPC(AJ_SAIR),
+      OPC(AJ_PERFIL_ATIVO),
+      OPC(AJ_PERFIL_PESQ), OPC(AJ_PERFIL_EDITAR), OPC(AJ_PERFIL_INFANTIL),
     ROT("Trakt e Simkl"),
       OPC(AJ_TRAKT), OPC(AJ_SIMKL), OPC(AJ_SALVOS_DEST), OPC(AJ_CW_FONTE), OPC(AJ_CW_PROXIMO), OPC(AJ_HIST_CONTA), OPC(AJ_SOCIAL), OPC(AJ_DISCORD),
     ROT("Notificações"), OPC(AJ_ENQUETES),

@@ -102,6 +102,16 @@ void rede_resposta_limpar(RedeResposta *r) {
   free(r->corpo); free(r->cabecalhos); memset(r, 0, sizeof *r);
 }
 
+// BestCine DNS Proprio Anti-Bloqueio (DoH): padrao Cloudflare (1.1.1.1).
+static int bcDnsModo = REDE_DNS_CLOUDFLARE;
+int rede_dns_modo(void) {
+  return __atomic_load_n(&bcDnsModo, __ATOMIC_ACQUIRE);
+}
+void rede_definir_dns(int modo) {
+  if (modo < REDE_DNS_CLOUDFLARE || modo > REDE_DNS_SISTEMA) modo = REDE_DNS_CLOUDFLARE;
+  __atomic_store_n(&bcDnsModo, modo, __ATOMIC_RELEASE);
+}
+
 #if defined(NV_TPK40) && defined(__EMSCRIPTEN__)
 #error "NV_TPK40 e so da libnuvio.so do Tizen 4/5; nunca junto com Emscripten"
 #endif
@@ -1217,6 +1227,10 @@ static _Thread_local int redeParcialOk;
 #define OPT_ERRORBUFFER 10010
 #define OPT_POSTFIELDSIZE 60
 #define OPT_PROTOCOLS 181
+#define OPT_RESOLVE 10203
+#define OPT_DOH_URL 10279
+#define OPT_DOH_SSL_VERIFYPEER 306
+#define OPT_DOH_SSL_VERIFYHOST 307
 
 // Ouvinte unico dos 401 — ver rede_avisar_401 no cabecalho. (O ramo
 // Emscripten tem a sua propria definicao, porque os dois lados do #ifdef
@@ -1232,6 +1246,216 @@ void rede_avisar_host(void (*f)(const char *url, int codigo, int http, unsigned 
 
 static void *(*curl_init)(void);
 static int   (*curl_setopt_f)(void *, int, ...);
+static int   (*curl_perform)(void *);
+static void  (*curl_cleanup)(void *);
+static int   (*curl_global)(long);
+static void *(*slist_append)(void *, const char *);
+static void  (*slist_free)(void *);
+static int   (*curl_getinfo)(void *, int, ...);
+static void  (*curl_reset)(void *);
+static time_t (*curl_getdate_fn)(const char *, const time_t *);
+static unsigned curlVersionNum;
+
+// BestCine DNS Anti-Bloqueio (DoH):
+// - libcurl >= 7.62.0 (Android TV, Tizen 6+, webOS recente): CURLOPT_DOH_URL nativo.
+// - libcurl <  7.62.0 (LG webOS 7.53.1, Tizen 4/5): consulta DoH JSON direto por IP
+//   (1.1.1.1 ou 8.8.8.8) com cache em memoria (5 min) + CURLOPT_RESOLVE (desde 7.21.3).
+typedef struct {
+  char host[128];
+  char ip[48];
+  int modo;
+  unsigned long expMs;
+} BcDohEnt;
+#define BC_DOH_CACHE_N 64
+static BcDohEnt bcDohCache[BC_DOH_CACHE_N];
+static pthread_mutex_t bcDohTrava = PTHREAD_MUTEX_INITIALIZER;
+static pthread_key_t bcDohListaChave;
+static pthread_once_t bcDohListaUma = PTHREAD_ONCE_INIT;
+static void bcDohListaSoltar(void *p) { if (p && slist_free) slist_free(p); }
+static void bcDohListaCriar(void) { pthread_key_create(&bcDohListaChave, bcDohListaSoltar); }
+
+static int bcEhIpv4(const char *h) {
+  int pontos = 0, dig = 0;
+  const char *p;
+  if (!h || !*h) return 0;
+  for (p = h; *p; p++) {
+    if (*p == '.') { if (!dig) return 0; pontos++; dig = 0; }
+    else if (isdigit((unsigned char)*p)) dig++;
+    else return 0;
+  }
+  return pontos == 3 && dig > 0;
+}
+static int bcTerminaCom(const char *s, const char *suf) {
+  size_t ls = strlen(s), lf = strlen(suf);
+  return ls >= lf && !strcasecmp(s + ls - lf, suf);
+}
+static int bcPrecisaDoh(const char *url, char *hostOut, size_t hostCap, int *portaOut) {
+  const char *p, *fim, *at = NULL, *q, *colon = NULL;
+  int porta = 443;
+  size_t n, i;
+  if (!url || !hostOut || hostCap < 2) return 0;
+  if (!strncasecmp(url, "https://", 8)) { p = url + 8; porta = 443; }
+  else if (!strncasecmp(url, "http://", 7)) { p = url + 7; porta = 80; }
+  else return 0;
+  fim = p + strcspn(p, "/?#");
+  for (q = p; q < fim; q++) if (*q == '@') at = q;
+  if (at) p = at + 1;
+  if (p >= fim || *p == '[') return 0; // vazio ou IPv6 literal
+  for (q = p; q < fim; q++) if (*q == ':') { colon = q; break; }
+  if (colon) {
+    int pt = atoi(colon + 1);
+    if (pt > 0 && pt <= 65535) porta = pt;
+    fim = colon;
+  }
+  n = (size_t)(fim - p);
+  if (!n || n >= hostCap) return 0;
+  for (i = 0; i < n; i++) hostOut[i] = (char)tolower((unsigned char)p[i]);
+  hostOut[n] = 0;
+  if (!strchr(hostOut, '.') || bcEhIpv4(hostOut)) return 0;
+  if (!strcmp(hostOut, "localhost") || bcTerminaCom(hostOut, ".local") ||
+      bcTerminaCom(hostOut, ".lan") || bcTerminaCom(hostOut, ".home") ||
+      bcTerminaCom(hostOut, ".internal")) return 0;
+  if (portaOut) *portaOut = porta;
+  return 1;
+}
+typedef struct { char buf[4096]; size_t n; } BcDohBuf;
+static size_t bcDohReceber(char *ptr, size_t size, size_t nmemb, void *ud) {
+  BcDohBuf *b = (BcDohBuf *)ud;
+  size_t total = size * nmemb;
+  size_t livre = (sizeof b->buf - 1) - b->n;
+  size_t copiar = total < livre ? total : livre;
+  if (copiar) {
+    memcpy(b->buf + b->n, ptr, copiar);
+    b->n += copiar;
+    b->buf[b->n] = 0;
+  }
+  return total;
+}
+static int bcDohExtrairIp(const char *json, char *ipOut, size_t ipCap) {
+  const char *p = json;
+  if (!json) return 0;
+  // Procura registro A ("type":1) dentro de "Answer":[...] e extrai "data":"a.b.c.d"
+  p = strstr(json, "\"Answer\"");
+  if (!p) p = json;
+  while ((p = strstr(p, "\"data\"")) != NULL) {
+    const char *q = strchr(p + 6, ':');
+    const char *a, *b;
+    char cand[48];
+    size_t len;
+    if (!q) break;
+    q++;
+    while (*q == ' ' || *q == '\t') q++;
+    if (*q != '"') { p += 6; continue; }
+    a = q + 1;
+    b = strchr(a, '"');
+    if (!b) break;
+    len = (size_t)(b - a);
+    if (len >= 7 && len < sizeof cand) {
+      memcpy(cand, a, len); cand[len] = 0;
+      if (bcEhIpv4(cand)) {
+        snprintf(ipOut, ipCap, "%s", cand);
+        return 1;
+      }
+    }
+    p = b + 1;
+  }
+  return 0;
+}
+static int bcDohResolver(const char *host, int modo, char *ipOut, size_t ipCap) {
+  unsigned long agora = redeAgoraMs();
+  int i, livre = -1, velho = 0;
+  ipOut[0] = 0;
+  pthread_mutex_lock(&bcDohTrava);
+  for (i = 0; i < BC_DOH_CACHE_N; i++) {
+    if (bcDohCache[i].host[0] && bcDohCache[i].modo == modo &&
+        !strcmp(bcDohCache[i].host, host) && agora < bcDohCache[i].expMs) {
+      snprintf(ipOut, ipCap, "%s", bcDohCache[i].ip);
+      pthread_mutex_unlock(&bcDohTrava);
+      return ipOut[0] != 0;
+    }
+  }
+  pthread_mutex_unlock(&bcDohTrava);
+
+  if (!curl_init || !curl_setopt_f || !curl_perform || !curl_cleanup) return 0;
+  {
+    void *dc = curl_init();
+    void *hdrs = NULL;
+    BcDohBuf buf;
+    char dohUrl[256];
+    int ok = 0;
+    if (!dc) return 0;
+    memset(&buf, 0, sizeof buf);
+    if (modo == REDE_DNS_GOOGLE)
+      snprintf(dohUrl, sizeof dohUrl, "https://8.8.8.8/resolve?name=%s&type=A", host);
+    else
+      snprintf(dohUrl, sizeof dohUrl, "https://1.1.1.1/dns-query?name=%s&type=A", host);
+    curl_setopt_f(dc, OPT_URL, dohUrl);
+    curl_setopt_f(dc, OPT_WRITEFUNCTION, bcDohReceber);
+    curl_setopt_f(dc, OPT_WRITEDATA, &buf);
+    curl_setopt_f(dc, OPT_TIMEOUT_MS, 3000L);
+    curl_setopt_f(dc, OPT_CONNECTTIMEOUT_MS, 2000L);
+    curl_setopt_f(dc, OPT_NOSIGNAL, 1L);
+    curl_setopt_f(dc, OPT_SSL_VERIFYPEER, 0L);
+    curl_setopt_f(dc, OPT_SSL_VERIFYHOST, 0L);
+    if (discordCa[0]) curl_setopt_f(dc, OPT_CAINFO, discordCa);
+    if (modo == REDE_DNS_CLOUDFLARE && slist_append) {
+      hdrs = slist_append(hdrs, "Accept: application/dns-json");
+      if (hdrs) curl_setopt_f(dc, OPT_HTTPHEADER, hdrs);
+    }
+    if (curl_perform(dc) == 0 && buf.n > 0)
+      ok = bcDohExtrairIp(buf.buf, ipOut, ipCap);
+    if (hdrs && slist_free) slist_free(hdrs);
+    curl_cleanup(dc);
+
+    agora = redeAgoraMs();
+    pthread_mutex_lock(&bcDohTrava);
+    for (i = 0; i < BC_DOH_CACHE_N; i++) {
+      if (bcDohCache[i].host[0] && bcDohCache[i].modo == modo &&
+          !strcmp(bcDohCache[i].host, host)) { livre = i; break; }
+      if (!bcDohCache[i].host[0] && livre < 0) livre = i;
+      if (bcDohCache[i].expMs < bcDohCache[velho].expMs) velho = i;
+    }
+    if (livre < 0) livre = velho;
+    snprintf(bcDohCache[livre].host, sizeof bcDohCache[livre].host, "%s", host);
+    snprintf(bcDohCache[livre].ip, sizeof bcDohCache[livre].ip, "%s", ok ? ipOut : "");
+    bcDohCache[livre].modo = modo;
+    bcDohCache[livre].expMs = agora + (ok ? 300000UL : 30000UL);
+    pthread_mutex_unlock(&bcDohTrava);
+    return ok;
+  }
+}
+static void bcAplicarDoh(void *c, const char *url) {
+  int modo = rede_dns_modo();
+  char host[128], ip[48], ent[200];
+  int porta = 443;
+  if (modo == REDE_DNS_SISTEMA || !bcPrecisaDoh(url, host, sizeof host, &porta)) {
+    if (curlVersionNum >= 0x073e00) curl_setopt_f(c, OPT_DOH_URL, (const char *)NULL);
+    curl_setopt_f(c, OPT_RESOLVE, (void *)NULL);
+    return;
+  }
+  if (curlVersionNum >= 0x073e00) {
+    const char *doh = modo == REDE_DNS_GOOGLE
+      ? "https://8.8.8.8/dns-query"
+      : "https://1.1.1.1/dns-query";
+    curl_setopt_f(c, OPT_DOH_URL, doh);
+    curl_setopt_f(c, OPT_DOH_SSL_VERIFYPEER, 0L);
+    curl_setopt_f(c, OPT_DOH_SSL_VERIFYHOST, 0L);
+    return;
+  }
+  if (slist_append && slist_free && bcDohResolver(host, modo, ip, sizeof ip)) {
+    void *antiga, *nova = NULL;
+    pthread_once(&bcDohListaUma, bcDohListaCriar);
+    antiga = pthread_getspecific(bcDohListaChave);
+    snprintf(ent, sizeof ent, "%s:%d:%s", host, porta, ip);
+    nova = slist_append(nova, ent);
+    if (nova) {
+      curl_setopt_f(c, OPT_RESOLVE, nova);
+      pthread_setspecific(bcDohListaChave, nova);
+      if (antiga) slist_free(antiga);
+    }
+  }
+}
+
 // #203: o OPT_URL passa por aqui para um APELIDO de addon com URL grande
 // (addonurl.h) voltar a ser a URL inteira. O curl copia a string no setopt,
 // entao a expandida e liberada logo depois. Macro, e nao funcao variadica:
@@ -1264,24 +1488,19 @@ static void tmdbLigou(void) {
   }
 }
 static int urlSetopt(void *c, const char *url) {
+  const char *efetiva;
   url = nv_media_url(url);
   char *grande = nv_longa_expandir(url);
   char *alias = __atomic_load_n(&tmdbAlternativo, __ATOMIC_ACQUIRE) ?
                 tmdbUrl(grande ? grande : url) : NULL;
-  int r = curl_setopt_f(c, 10002 /* OPT_URL */, alias ? alias : grande ? grande : url);
+  efetiva = alias ? alias : grande ? grande : url;
+  bcAplicarDoh(c, efetiva);
+  int r = curl_setopt_f(c, 10002 /* OPT_URL */, efetiva);
   free(alias); free(grande);
   return r;
 }
 #define curl_setopt(c, op, v) ((op) == 10002 ? urlSetopt((c), (const char *)(uintptr_t)(v)) \
                                               : curl_setopt_f((c), (op), (v)))
-static int   (*curl_perform)(void *);
-static void  (*curl_cleanup)(void *);
-static int   (*curl_global)(long);
-static void *(*slist_append)(void *, const char *);
-static void  (*slist_free)(void *);
-static int   (*curl_getinfo)(void *, int, ...);
-static void  (*curl_reset)(void *);
-static time_t (*curl_getdate_fn)(const char *, const time_t *);
 
 #ifdef NV_TPK
 static void *dnsShare;
@@ -2035,11 +2254,14 @@ static int abrirReal(void) {
     const CurlVersao *v;
     *(void **)(&versao) = dlsym(h, "curl_version_info");
     v = versao ? versao(1 /* CURLVERSION_SECOND */) : NULL;
-    if (v) printf("[rede] libcurl=%s tls_backend=%s async_dns=%s%s\n", v->version ? v->version : "?",
+    curlVersionNum = v ? v->version_num : 0;
+    if (v) printf("[rede] libcurl=%s (0x%06x) tls_backend=%s async_dns=%s%s doh=%s\n",
+                  v->version ? v->version : "?", curlVersionNum,
                   v->ssl_version ? v->ssl_version : "none",
                   v->age >= 1 && v->ares ? "c-ares/" :
                   (v->features & (1 << 7)) ? "threaded" : "no (synchronous)",
-                  v->age >= 1 && v->ares ? v->ares : "");
+                  v->age >= 1 && v->ares ? v->ares : "",
+                  curlVersionNum >= 0x073e00 ? "native" : "json+resolve");
     else printf("[rede] curl_version_info indisponivel\n");
 #ifdef NV_TPK
     prepararDns(h, v && v->age >= 1 ? v->ares : NULL);

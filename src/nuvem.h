@@ -23,6 +23,8 @@
 int nuvem_configurar(const char *dirArte);
 
 int         nuvem_pronta(void);
+int         nuvem_supabase_pronta(void);
+const char *nuvem_bestcine_url(void);
 const char *nuvem_url(void);
 const char *nuvem_anon(void);
 // Base da pagina web que a pessoa abre no celular para autorizar a TV

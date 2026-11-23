@@ -20,7 +20,7 @@
 #include <string.h>
 
 #define ARTE_RAIZ_PACOTE "/res/art/"
-#define ARTE_RAIZ_REMOTA "https://raw.githubusercontent.com/iqui27/nuvio-native-legacy/v"
+#define ARTE_RAIZ_REMOTA "https://raw.githubusercontent.com/BestCine/BestCine-TV/v"
 
 static inline int arte_url_remota(const char *caminho, const char *versao, char *dst, size_t tam) {
   const char *p, *v;

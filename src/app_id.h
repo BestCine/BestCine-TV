@@ -1,7 +1,7 @@
 #ifndef NV_APP_ID_H
 #define NV_APP_ID_H
 /* Package metadata and the runtime must be built with the same identity. */
-#define NV_APP_ID_PRODUCTION "space.nuvio.native.legacy"
+#define NV_APP_ID_PRODUCTION "com.bestcine.tv"
 #ifndef NV_APP_ID
 #ifdef NV_DTS_DEBUG
 #error "NV_DTS_DEBUG requires an isolated NV_APP_ID package identity"

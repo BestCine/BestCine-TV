@@ -1,6 +1,7 @@
 #include "sessao.h"
 #include "idioma.h"
 #include "nuvem.h"
+#include "rede.h"
 #include "dados.h"
 #include "js.h"
 #include "jsw.h"
@@ -67,6 +68,14 @@ static char renovar[TOKMAX];
 static char sub[80];
 static int  anonima;              // 1 quando o token e da sessao anonima
 static long expiraEm;             // `exp` do JWT, em segundos
+
+// Sessao nativa BestCine (QR Code em /api/tv/code + /api/tv/poll)
+static int  bcAtiva;
+static char bcToken[96];
+static char bcNome[128];
+static char bcEmail[160];
+static char bcPlano[48];
+static char bcVencimento[48];
 
 static SesEstado estado = SES_DESLOGADO;
 static char codigo[64];
@@ -249,7 +258,12 @@ static void erroServidor(int st) {
 // tokTrava presa (ordem tokTrava -> dadosTrava).
 static void gravarSessao(void) {
   char buf[6400];
-  snprintf(buf, sizeof buf, "%s\n%s\n%d\n", acesso, renovar, anonima ? 1 : 0);
+  if (bcAtiva && bcToken[0]) {
+    snprintf(buf, sizeof buf, "BESTCINE_V1\n%s\n%s\n%s\n%s\n%s\n%s\n",
+             bcToken, sub, bcNome, bcEmail, bcPlano, bcVencimento);
+  } else {
+    snprintf(buf, sizeof buf, "%s\n%s\n%d\n", acesso, renovar, anonima ? 1 : 0);
+  }
   dados_gravar(ARQ_SESSAO, buf);
   // Login novo ou token renovado: sem isto no IndexedDB a proxima abertura
   // nao acha a sessao (ou acha a anterior). Nao espera a vez da descarga —
@@ -259,12 +273,81 @@ static void gravarSessao(void) {
 
 // tokTrava presa.
 static void limpar(void) {
-  int mudou = acesso[0] || renovar[0] || sub[0];
+  int mudou = acesso[0] || renovar[0] || sub[0] || bcAtiva;
   if (mudou) { identidadePerfilTravar(); invalidarPerfil(); }
   acesso[0] = renovar[0] = sub[0] = 0;
   anonima = 0;
   expiraEm = 0;
+  bcAtiva = 0;
+  bcToken[0] = bcNome[0] = bcEmail[0] = bcPlano[0] = bcVencimento[0] = 0;
   if (mudou) nv_perfil_sessao_destravar();
+}
+
+static void limparQuebrasLinha(char *s) {
+  if (!s) return;
+  for (; *s; s++) {
+    if (*s == '\n' || *s == '\r') *s = ' ';
+  }
+}
+
+// Extrai o objeto "usuario" retornado por /api/tv/poll ou /api/app/status.
+// Devolve 1 = salvo OK, -1 = conta banida (erroOut preenchido), 0 = JSON invalido.
+static int aplicarUsuarioBestCine(const char *corpo, char *erroOut, size_t erroTam) {
+  const char *u, *fim;
+  char tok[96], nome[128], em[160], pl[48], venc[48], motivo[180], novoSub[80];
+  long uid = 0;
+  int banido = 0;
+  if (!corpo || !*corpo) return 0;
+  fim = corpo + strlen(corpo);
+  u = strstr(corpo, "\"usuario\"");
+  if (!u) u = corpo;
+  tok[0] = nome[0] = em[0] = pl[0] = venc[0] = motivo[0] = 0;
+  js_texto(u, fim, "token_instalacao", tok, sizeof tok);
+  js_texto(u, fim, "nome", nome, sizeof nome);
+  js_texto(u, fim, "email", em, sizeof em);
+  js_texto(u, fim, "plano", pl, sizeof pl);
+  js_texto(u, fim, "vencimento_apoio", venc, sizeof venc);
+  js_texto(u, fim, "motivo_ban", motivo, sizeof motivo);
+  uid = (long)js_num(u, fim, "id", 0);
+  banido = (int)js_num(u, fim, "banido", 0);
+  if (!banido && strstr(u, "\"banido\":true")) banido = 1;
+  if (banido) {
+    if (erroOut && erroTam) {
+      if (motivo[0]) snprintf(erroOut, erroTam, "Conta BestCine suspensa: %s", motivo);
+      else snprintf(erroOut, erroTam, "Sua conta BestCine está suspensa.");
+    }
+    return -1;
+  }
+  if (!tok[0] || strncmp(tok, "bc_", 3) != 0) return 0;
+  limparQuebrasLinha(nome);
+  limparQuebrasLinha(em);
+  limparQuebrasLinha(pl);
+  limparQuebrasLinha(venc);
+  if (!pl[0]) snprintf(pl, sizeof pl, "gratuito");
+  if (!strcmp(venc, "null")) venc[0] = 0;
+  if (uid > 0) snprintf(novoSub, sizeof novoSub, "bc_%ld", uid);
+  else snprintf(novoSub, sizeof novoSub, "bc_user");
+
+  pthread_mutex_lock(&tokTrava);
+  if (strcmp(sub, novoSub)) {
+    identidadePerfilTravar();
+    invalidarPerfil();
+    snprintf(sub, sizeof sub, "%s", novoSub);
+    nv_perfil_sessao_destravar();
+  }
+  bcAtiva = 1;
+  anonima = 0;
+  expiraEm = 0;
+  snprintf(bcToken, sizeof bcToken, "%s", tok);
+  snprintf(acesso, sizeof acesso, "%s", tok);
+  renovar[0] = 0;
+  snprintf(bcNome, sizeof bcNome, "%s", nome[0] ? nome : "Conta BestCine");
+  snprintf(bcEmail, sizeof bcEmail, "%s", em);
+  snprintf(bcPlano, sizeof bcPlano, "%s", pl);
+  snprintf(bcVencimento, sizeof bcVencimento, "%s", venc);
+  gravarSessao();
+  pthread_mutex_unlock(&tokTrava);
+  return 1;
 }
 
 // ---------------------------------------------------------------- respostas
@@ -501,30 +584,34 @@ static char *chamar(const char *caminho, const char *corpo, int *status) {
 
 char *sessao_rpc(const char *funcao, const char *corpoJson, int *status) {
   char caminho[300];
-  if (!funcao || !*funcao) return NULL;
+  if (status) *status = 0;
+  if (bcAtiva || !nuvem_supabase_pronta() || !funcao || !*funcao) return NULL;
   snprintf(caminho, sizeof caminho, "/rest/v1/rpc/%s", funcao);
   return chamar(caminho, corpoJson, status);
 }
 
 char *sessao_tabela(const char *tabela, const char *consulta, int *status) {
+  if (status) *status = 0;
+  if (bcAtiva || !nuvem_supabase_pronta()) return NULL;
   return pedir(1, tabela, consulta, status);
 }
 
 char *sessao_funcao(const char *nome, const char *corpoJson, int *status) {
   char caminho[300];
-  if (!nome || !*nome) return NULL;
+  if (status) *status = 0;
+  if (bcAtiva || !nuvem_supabase_pronta() || !nome || !*nome) return NULL;
   snprintf(caminho, sizeof caminho, "/functions/v1/%s", nome);
   return chamar(caminho, corpoJson, status);
 }
 
 // ---------------------------------------------------------------- login
 
-// Passo 1+2, no fio: sessao anonima e pedido do codigo.
+// Passo 1+2 (BestCine TV): pede codigo temporario e URL de QR em /api/tv/code.
 static void *fioPedir(void *u) {
-  Jsw w;
-  char *resp;
-  char tok[TOKMAX];
-  int st = 0, precisaAnon;
+  char urlReq[420];
+  const char *cab[3] = { "Accept: application/json", "Cache-Control: no-store", NULL };
+  char *resp = NULL;
+  int st = 0;
   (void)u;
 #ifdef NV_TPK40
   nv_tpk40_etapa("note sign-in-thread started");   // rastro do Tizen 4/5 (#180)
@@ -532,145 +619,105 @@ static void *fioPedir(void *u) {
   erro[0] = 0;
   codigo[0] = 0;
   urlLogin[0] = 0;
+  nonce[0] = 0;
 
-  pthread_mutex_lock(&tokTrava);
-  precisaAnon = !acesso[0] || (anonima && vencido());
-  pthread_mutex_unlock(&tokTrava);
-  if (precisaAnon) {
-    if (!sessaoAnonima()) {
-      if (!emailPedido && estado != SES_EMAIL) estado = SES_ERRO;
-      passoPronto = 1;
-      return NULL;
-    }
-  }
-  copiarAcesso(tok, sizeof tok);
-
-  // MEDIDO contra o servidor: `p_redirect_base_url` vazia devolve 400 com
-  // "Invalid TV login redirect base URL". Nao ha login sem essa configuracao, e
-  // tentar assim mesmo so produziria um erro que a pessoa nao pode resolver.
-  if (!nuvem_base_login()[0]) {
-    snprintf(erro, sizeof erro, "pacote sem endereco de login configurado");
-    estado = SES_ERRO;
-    passoPronto = 1;
-    return NULL;
-  }
-
-  // MEDIDO: o nonce TEM de ser um UUID. Com um identificador proprio, mesmo
-  // unico, o servidor devolve 400 "Invalid device nonce".
-  dados_uuid(nonce, sizeof nonce);
-
-  jsw_iniciar(&w);
-  jsw_obj_ini(&w);
-  jsw_cs(&w, "p_device_nonce", nonce);
-  jsw_cs(&w, "p_redirect_base_url", nuvem_base_login());
-  jsw_cs(&w, "p_device_name", "LG webOS (Nuvio nativo)");
-  jsw_obj_fim(&w);
-  resp = loginRpc("start_tv_login_session", jsw_texto_final(&w), tok, &st);
-
-  // Servidor antigo recusa o p_device_name; o web repete sem ele. Sem esta
-  // segunda tentativa o login simplesmente nao existe nesses projetos.
-  if (resp && nuvem_erro_ausente(resp)) {
-    free(resp);
-    jsw_livre(&w);
-    jsw_iniciar(&w);
-    jsw_obj_ini(&w);
-    jsw_cs(&w, "p_device_nonce", nonce);
-    jsw_cs(&w, "p_redirect_base_url", nuvem_base_login());
-    jsw_obj_fim(&w);
-    resp = loginRpc("start_tv_login_session", jsw_texto_final(&w), tok, &st);
-  }
-  jsw_livre(&w);
+  snprintf(urlReq, sizeof urlReq, "%s/api/tv/code", nuvem_bestcine_url());
+  resp = rede_postar_st(urlReq, 20, cab, "{}", &st);
 
   if (resp && st >= 200 && st < 300) {
     const char *fim = resp + strlen(resp);
     double intervalo;
-    js_texto(resp, fim, "code", codigo, sizeof codigo);
-    // MEDIDO: a resposta ja traz a URL COMPLETA, com o codigo na query. Montar
-    // "base + ?code=" a mao daria o mesmo resultado hoje e quebraria no dia em
-    // que o servidor mudar o formato — usar o que ele mandou e de graca.
-    js_texto(resp, fim, "web_url", urlLogin, sizeof urlLogin);
-    intervalo = js_num(resp, fim, "poll_interval_seconds", 0);
-    if (intervalo >= 1.0 && intervalo <= 60.0) pollMs = (unsigned)(intervalo * 1000.0);
+    js_texto(resp, fim, "device_code", nonce, sizeof nonce);
+    js_texto(resp, fim, "display_code", codigo, sizeof codigo);
+    if (!codigo[0]) js_texto(resp, fim, "user_code", codigo, sizeof codigo);
+    js_texto(resp, fim, "verify_url", urlLogin, sizeof urlLogin);
+    intervalo = js_num(resp, fim, "interval", 3);
+    if (intervalo >= 2.0 && intervalo <= 15.0) pollMs = (unsigned)(intervalo * 1000.0);
   }
-  if (!codigo[0]) {
-    // Status/class only: a server may echo request data in its error body.
-    printf("[login] stage=code-response class=%s http=%d curl=%d utc=%lld\n",
-           loginClasse(st), st, loginCurl(st), (long long)time(NULL));
-    if (falhaServidor(st)) erroServidor(st);
-    else if (st >= 200 && st < 300) snprintf(erro, sizeof erro, "HTTP %d [response]", st);
-    else snprintf(erro, sizeof erro,
-                  i18n("O servidor da conta Nuvio recusou o pedido do código (HTTP %d). Tente de novo em alguns minutos."), st);
-    if (!emailPedido && estado != SES_EMAIL) estado = SES_ERRO;
+
+  if (!nonce[0] || !codigo[0]) {
+    printf("[login] bestcine /api/tv/code falhou http=%d curl=%d\n", st, loginCurl(st));
+    if (st == 0) {
+      snprintf(erro, sizeof erro, "Não foi possível conectar ao BestCine. Verifique sua internet/DNS.");
+      anexarTransporte(erro, sizeof erro, st);
+    } else if (st == 429) {
+      snprintf(erro, sizeof erro, "Muitas tentativas. Aguarde um minuto e tente novamente.");
+    } else {
+      snprintf(erro, sizeof erro, "Servidor BestCine retornou HTTP %d ao gerar o QR Code.", st);
+    }
+    estado = SES_ERRO;
   } else {
     if (!urlLogin[0])
-      snprintf(urlLogin, sizeof urlLogin, "%s?code=%s", nuvem_base_login(), codigo);
-    if (!emailPedido && estado != SES_EMAIL) estado = SES_AGUARDANDO;
+      snprintf(urlLogin, sizeof urlLogin, "%s/tv?code=%s", nuvem_bestcine_url(), codigo);
+    estado = SES_AGUARDANDO;
   }
   free(resp);
-  apagar(tok, sizeof tok);
   passoPronto = 1;
   return NULL;
 }
 
-// Passo 3: pergunta se ja autorizaram; quando sim, troca pelo token.
+// Passo 3 (BestCine TV): consulta /api/tv/poll?device_code=... ate o usuario autorizar no celular.
 static void *fioPoll(void *u) {
-  Jsw w;
-  char *resp;
+  char urlReq[520];
+  const char *cab[3] = { "Accept: application/json", "Cache-Control: no-store", NULL };
+  char *resp = NULL;
   int st = 0;
   char status[48];
-  char tok[TOKMAX];
   (void)u;
-  copiarAcesso(tok, sizeof tok);
 
-  jsw_iniciar(&w);
-  jsw_obj_ini(&w);
-  jsw_cs(&w, "p_code", codigo);
-  jsw_cs(&w, "p_device_nonce", nonce);
-  jsw_obj_fim(&w);
-  resp = loginRpc("poll_tv_login_session", jsw_texto_final(&w), tok, &st);
-  jsw_livre(&w);
+  if (!nonce[0]) {
+    estado = SES_ERRO;
+    snprintf(erro, sizeof erro, "Sessão de QR Code inválida. Tente novamente.");
+    passoPronto = 1;
+    return NULL;
+  }
+
+  snprintf(urlReq, sizeof urlReq, "%s/api/tv/poll?device_code=%s", nuvem_bestcine_url(), nonce);
+  resp = rede_baixar_st(urlReq, 15, cab, &st);
+
+  if (st == 410 || st == 400) {
+    snprintf(erro, sizeof erro, "O código expirou. Clique em Tentar de novo para gerar outro QR Code.");
+    estado = SES_ERRO;
+    codigo[0] = 0;
+    nonce[0] = 0;
+    free(resp);
+    passoPronto = 1;
+    return NULL;
+  }
 
   status[0] = 0;
-  if (resp && st >= 200 && st < 300)
+  if (resp && st >= 200 && st < 300) {
     js_texto(resp, resp + strlen(resp), "status", status, sizeof status);
-  free(resp);
+  }
 
-  // "approved"/"authorized"/"ready": o servidor nao publica a lista, entao
-  // qualquer coisa que NAO seja pendente/expirado tenta a troca. Uma troca
-  // recusada nao custa nada; um estado desconhecido tratado como pendente
-  // deixaria o usuario preso numa tela que ja podia ter passado.
-  if (status[0] && strcmp(status, "pending") && strcmp(status, "expired") &&
-      strcmp(status, "cancelled")) {
+  if (!strcmp(status, "approved")) {
+    char banMsg[240];
+    int ok;
+    banMsg[0] = 0;
     estado = SES_TROCANDO;
-    jsw_iniciar(&w);
-    jsw_obj_ini(&w);
-    jsw_cs(&w, "code", codigo);
-    jsw_cs(&w, "device_nonce", nonce);
-    jsw_obj_fim(&w);
-    resp = loginPost("exchange", "/functions/v1/tv-logins-exchange", jsw_texto_final(&w),
-                      tok, &st);
-    jsw_livre(&w);
-    if (resp && st >= 200 && st < 300 && guardarTokens(resp, 0)) {
+    ok = aplicarUsuarioBestCine(resp, banMsg, sizeof banMsg);
+    if (ok == 1) {
       estado = SES_LOGADO;
       codigo[0] = 0;
-      printf("[sessao] logado como %s\n", sub[0] ? sub : "(sem sub)");
-    } else if (falhaServidor(st)) {
-      // AUTORIZADO, mas o servidor nao respondeu a troca: o codigo continua
-      // valendo, entao a TV continua esperando e a proxima volta do poll tenta
-      // a troca de novo — a pessoa nao precisa escanear outra vez.
-      printf("[sessao] troca do codigo sem resposta do servidor (HTTP %d): tento de novo\n", st);
-      estado = SES_AGUARDANDO;
+      nonce[0] = 0;
+      printf("[sessao] BestCine TV conectado: %s (%s)\n", bcNome, bcPlano);
+    } else if (ok < 0) {
+      snprintf(erro, sizeof erro, "%s", banMsg[0] ? banMsg : "Sua conta BestCine está suspensa.");
+      estado = SES_ERRO;
+      codigo[0] = 0;
+      nonce[0] = 0;
     } else {
-      printf("[sessao] troca do codigo recusada (HTTP %d)\n", st);
-      snprintf(erro, sizeof erro, i18n("troca de codigo recusada (HTTP %d)"), st);
+      snprintf(erro, sizeof erro, "Resposta inválida do servidor BestCine ao confirmar login.");
       estado = SES_ERRO;
     }
-    free(resp);
   } else if (!strcmp(status, "expired") || !strcmp(status, "cancelled")) {
-    snprintf(erro, sizeof erro, "o código expirou");
+    snprintf(erro, sizeof erro, "O código expirou. Gere um novo QR Code.");
     estado = SES_ERRO;
+    codigo[0] = 0;
+    nonce[0] = 0;
   }
-  apagar(tok, sizeof tok);
+
+  free(resp);
   passoPronto = 1;
   return NULL;
 }
@@ -785,6 +832,34 @@ void sessao_iniciar(void) {
   char *buf = dados_ler(ARQ_SESSAO);
   char *l1, *l2, *l3;
   if (!buf) return;
+  if (!strncmp(buf, "BESTCINE_V1\n", 12)) {
+    char *p = buf + 12;
+    char *linhas[6] = {0};
+    int k = 0;
+    while (k < 6 && p && *p) {
+      linhas[k++] = p;
+      p = strchr(p, '\n');
+      if (p) *p++ = 0;
+    }
+    if (linhas[0] && strncmp(linhas[0], "bc_", 3) == 0) {
+      bcAtiva = 1;
+      anonima = 0;
+      expiraEm = 0;
+      snprintf(bcToken, sizeof bcToken, "%s", linhas[0]);
+      snprintf(acesso, sizeof acesso, "%s", linhas[0]);
+      snprintf(sub, sizeof sub, "%s", (linhas[1] && linhas[1][0]) ? linhas[1] : "bc_user");
+      snprintf(bcNome, sizeof bcNome, "%s", (linhas[2] && linhas[2][0]) ? linhas[2] : "Conta BestCine");
+      snprintf(bcEmail, sizeof bcEmail, "%s", linhas[3] ? linhas[3] : "");
+      snprintf(bcPlano, sizeof bcPlano, "%s", (linhas[4] && linhas[4][0]) ? linhas[4] : "gratuito");
+      snprintf(bcVencimento, sizeof bcVencimento, "%s", linhas[5] ? linhas[5] : "");
+      estado = SES_LOGADO;
+      printf("[sessao] BestCine TV restaurada (%s / %s)\n", bcNome, bcPlano);
+    } else {
+      dados_apagar(ARQ_SESSAO);
+    }
+    free(buf);
+    return;
+  }
   l1 = buf;
   l2 = strchr(l1, '\n');
   if (l2) { *l2++ = 0; l3 = strchr(l2, '\n'); if (l3) *l3++ = 0; } else l3 = NULL;
@@ -831,6 +906,58 @@ const char *sessao_erro(void)     { return erro; }
 // CONTA muda (login/saida, no laco principal); a renovacao do mesmo usuario nao
 // reescreve o texto (ver lerJwt).
 const char *sessao_usuario(void)  { return sub; }
+
+int         sessao_bc_ativa(void)      { return bcAtiva && bcToken[0] != 0; }
+const char *sessao_bc_token(void)      { return bcToken; }
+const char *sessao_bc_nome(void)       { return bcNome; }
+const char *sessao_bc_email(void)      { return bcEmail; }
+const char *sessao_bc_plano(void)      { return bcPlano; }
+const char *sessao_bc_vencimento(void) { return bcVencimento; }
+
+int sessao_bc_manifest_url(char *dst, size_t n) {
+  char tok[96];
+  if (!dst || !n) return 0;
+  dst[0] = 0;
+  pthread_mutex_lock(&tokTrava);
+  snprintf(tok, sizeof tok, "%s", bcAtiva ? bcToken : "");
+  pthread_mutex_unlock(&tokTrava);
+  if (!tok[0]) return 0;
+  snprintf(dst, n, "%s/%s/manifest.json", nuvem_bestcine_url(), tok);
+  return 1;
+}
+
+int sessao_bc_atualizar_status(void) {
+  char tok[96], urlReq[420], banMsg[240];
+  const char *cab[3] = { "Accept: application/json", "Cache-Control: no-store", NULL };
+  char *resp = NULL;
+  int st = 0, ok;
+  pthread_mutex_lock(&tokTrava);
+  snprintf(tok, sizeof tok, "%s", bcAtiva ? bcToken : "");
+  pthread_mutex_unlock(&tokTrava);
+  if (!tok[0]) return 0;
+
+  snprintf(urlReq, sizeof urlReq, "%s/api/app/status?token=%s", nuvem_bestcine_url(), tok);
+  resp = rede_baixar_st(urlReq, 15, cab, &st);
+  if (!resp || st == 0 || st >= 500 || st == 429) {
+    free(resp);
+    return 0; // erro temporario: preserva a sessao local
+  }
+  if (st == 401 || strstr(resp, "\"token_invalido\":true")) {
+    free(resp);
+    sessao_sair();
+    snprintf(erro, sizeof erro, "Sessão expirada ou token redefinido. Escaneie o QR Code novamente.");
+    return -1;
+  }
+  banMsg[0] = 0;
+  ok = aplicarUsuarioBestCine(resp, banMsg, sizeof banMsg);
+  free(resp);
+  if (ok < 0) {
+    sessao_sair();
+    snprintf(erro, sizeof erro, "%s", banMsg[0] ? banMsg : "Sua conta BestCine está suspensa.");
+    return -1;
+  }
+  return ok == 1 ? 1 : 0;
+}
 // "" para sessao anonima de proposito — ver a nota em sessao.h.
 // Quem chama e um fio de trabalho (recomenda, avisos, atividade) e pode estar
 // na rede: a renovacao roda AQUI, no fio de quem pediu, sem tokTrava presa.
@@ -839,6 +966,8 @@ int sessao_token_copiar(char *dst, size_t n) {
   int tem, precisa, st = 0;
   if (!dst || !n) return 0;
   dst[0] = 0;
+  // Nunca envia o token BestCine (bc_...) para servicos externos de Nuvio/Supabase.
+  if (bcAtiva) return 0;
   pthread_mutex_lock(&tokTrava);
   precisa = acesso[0] != 0 && !anonima && vencidoEm(60);
   pthread_mutex_unlock(&tokTrava);
@@ -865,7 +994,7 @@ int sessao_identidade_local_copiar(char *usuario, size_t nUsuario, char *jwt, si
 
 void sessao_token_recusado(const char *tok) {
   int st = 0;
-  if (!tok || !*tok) return;
+  if (bcAtiva || !tok || !*tok) return;
   pthread_mutex_lock(&tokTrava);
   if (!strcmp(tok, acesso)) invalidarPerfil();
   pthread_mutex_unlock(&tokTrava);

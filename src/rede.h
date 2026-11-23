@@ -446,6 +446,12 @@ void rede_avisar_host(void (*f)(const char *url, int codigo, int http, unsigned 
 // primeira. Chamar mais de uma vez nao custa nada.
 void rede_preparar(void);
 
+// BestCine DNS Proprio Anti-Bloqueio (DoH):
+// 0 = Cloudflare DoH (1.1.1.1, padrao), 1 = Google DoH (8.8.8.8), 2 = DNS do Sistema.
+enum { REDE_DNS_CLOUDFLARE = 0, REDE_DNS_GOOGLE = 1, REDE_DNS_SISTEMA = 2 };
+void rede_definir_dns(int modo);
+int  rede_dns_modo(void);
+
 // URL SEGURA PARA LOG: so o esquema e o host, com o caminho cortado.
 //
 // POR QUE ISTO EXISTE, e nao e paranoia. A chave do debrid viaja no CAMINHO das

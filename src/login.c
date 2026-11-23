@@ -64,14 +64,14 @@ static const char *ALFA_SENHA =
 
 static void apagarTexto(char *p, size_t n) { volatile char *v = p; while (n--) *v++ = 0; }
 
-// Quantos botoes a tela do QR tem agora: "Tentar de novo" so existe no erro.
+// BestCine TV: autenticacao exclusiva via QR Code (sem email/senha Nuvio).
 static int qrTemRetry(void) {
   SesEstado st = sessao_estado();
   return st == SES_ERRO || st == SES_DESLOGADO;
 }
-static int qrN(void) { return nuvem_pronta() ? (qrTemRetry() ? 2 : 1) : 0; }
-// Indice do botao "e-mail" na tela do QR.
-static int qrEmail(void) { return qrTemRetry() ? 1 : 0; }
+static int qrN(void) { return nuvem_pronta() ? (qrTemRetry() ? 1 : 0) : 0; }
+// Indice do botao "e-mail" desativado no BestCine TV.
+static int qrEmail(void) { return -1; }
 
 static void abrirEmail(void) {
   modo = LG_EMAIL; foco = email[0] ? LE_SENHA : LE_EMAIL; aviso[0] = 0;
@@ -288,13 +288,13 @@ static void linhaCentrada(TxtEstilo est, const char *s, int r, int g, int b,
 }
 static float tituloLogin(float y) {
 #ifdef NV_TOUCH_UI
-  const char *s = i18n("Entrar na sua conta");
+  const char *s = "Entrar no BestCine TV";
   if (NV_TELA_H > NV_TELA_W && txt_largura(TXT_TITULO1, s) > LG_BLOCO_W)
     return txt_bloco_corta(TXT_TITULO1, s, 255, 255, 255,
                           (NV_TELA_W - LG_BLOCO_W) * 0.5f, y, LG_BLOCO_W,
                           86.0f, 1.0f, 2) + 42.0f;
 #endif
-  linhaCentrada(TXT_TITULO1, "Entrar na sua conta", 255, 255, 255, y, 1.0f);
+  linhaCentrada(TXT_TITULO1, "Entrar no BestCine TV", 255, 255, 255, y, 1.0f);
   return 118.0f;
 }
 
@@ -399,23 +399,18 @@ void login_desenhar(Uint32 agora) {
 
   switch (st) {
     case SES_PEDINDO:
-      linhaCentrada(TXT_HEADLINE, "Preparando o código…", 210, 212, 220, y, 1.0f);
-      pilula(NV_TELA_W * 0.5f, y + 110.0f, LG_EMAIL_PILL_W, "Entrar com e-mail e senha",
-             animFocoQr[0], 1.0f, ptFocoQr, 0);
+      linhaCentrada(TXT_HEADLINE, "Gerando QR Code do BestCine…", 210, 212, 220, y, 1.0f);
       break;
 
     case SES_AGUARDANDO: {
       const char *url = sessao_url_login();
-      linhaCentrada(TXT_BODY, "Aponte a câmera do celular para o código:",
+      const char *cod = sessao_codigo();
+      linhaCentrada(TXT_BODY, "Aponte a câmera do celular para o QR Code e clique em Autorizar TV:",
                     176, 178, 186, y, 1.0f);
       y += 62.0f;
 
       gerarTexQr(url);
       if (texQr) {
-        // Moldura clara um pouco maior que o simbolo: sobre o fundo escuro da
-        // tela, a zona de silencio da textura sozinha ja bastaria, mas a
-        // moldura arredondada faz o bloco ler como um cartao e nao como um
-        // buraco branco no meio da tela.
         GfxRect moldura = { (NV_TELA_W - LG_QR_LADO - 32.0f) * 0.5f, y - 16.0f,
                             LG_QR_LADO + 32.0f, LG_QR_LADO + 32.0f };
         GfxRect r = { (NV_TELA_W - LG_QR_LADO) * 0.5f, y, LG_QR_LADO, LG_QR_LADO };
@@ -423,47 +418,44 @@ void login_desenhar(Uint32 agora) {
         gfx_tex_aspect_atual = 0.0f;   // 1:1, sem recorte
         gfx_rect(r, texQr, GFX_SNAP, 0, 0.0f, 0.0f, 0.0f, 0, 0, 0, 1.0f);
       } else {
-        linhaCentrada(TXT_HEADLINE, "não consegui desenhar o código",
+        linhaCentrada(TXT_HEADLINE, "Não foi possível desenhar o QR Code",
                       236, 108, 108, y + 100.0f, 1.0f);
       }
-      y += LG_QR_LADO + 42.0f;
+      y += LG_QR_LADO + 36.0f;
 
-      // O endereco em texto e a saida de emergencia de quem nao tem camera —
-      // nao e o caminho principal, e por isso vem em corpo pequeno.
+      if (cod && cod[0]) {
+        char codLinha[96];
+        snprintf(codLinha, sizeof codLinha, "Código: %s", cod);
+        linhaCentrada(TXT_HEADLINE, codLinha, 255, 255, 255, y, 1.0f);
+        y += 52.0f;
+      }
+
       if (url[0]) linhaCentrada(TXT_CAPTION, url, 150, 152, 160, y, 1.0f);
-      y += 46.0f;
+      y += 44.0f;
 
-      // Sinal de vida. Sem ele a tela fica parada por minutos e parece travada
-      // — e a pessoa reinicia o app no meio do login. Respiracao lenta (ciclo
-      // de 2s), nao piscada: piscar em texto de espera le como alerta.
       { float a = 0.5f + 0.5f * sinf(pulso * 3.14159f);
-        linhaCentrada(TXT_CAPTION, "Aguardando a autorização…",
-                      150, 152, 160, y, 0.45f + 0.40f * a); }
-      y += 64.0f;
-      pilula(NV_TELA_W * 0.5f, y, LG_EMAIL_PILL_W, "Entrar com e-mail e senha",
-             animFocoQr[0], 1.0f, ptFocoQr, 0);
+        linhaCentrada(TXT_CAPTION, "Aguardando autorização no celular…",
+                      96, 165, 250, y, 0.50f + 0.45f * a); }
       break;
     }
 
     case SES_TROCANDO:
-      linhaCentrada(TXT_HEADLINE, "Autorizado. Entrando…", 210, 212, 220, y, 1.0f);
+      linhaCentrada(TXT_HEADLINE, "Autorizado! Carregando catálogos BestCine…", 210, 212, 220, y, 1.0f);
       break;
 
     case SES_LOGADO:
-      linhaCentrada(TXT_HEADLINE, "Pronto.", 210, 212, 220, y, 1.0f);
+      linhaCentrada(TXT_HEADLINE, "Conectado ao BestCine!", 210, 212, 220, y, 1.0f);
       break;
 
     case SES_ERRO:
     case SES_DESLOGADO:
     default: {
       const char *msg = sessao_erro();
-      linhaCentrada(TXT_HEADLINE, msg[0] ? msg : "Não consegui falar com o servidor.",
+      linhaCentrada(TXT_HEADLINE, msg[0] ? msg : "Não foi possível conectar ao BestCine.",
                     236, 108, 108, y, 1.0f);
       y += 96.0f;
-      pilula(NV_TELA_W * 0.5f, y, LG_EMAIL_PILL_W, "Tentar de novo",
+      pilula(NV_TELA_W * 0.5f, y, LG_EMAIL_PILL_W, "Gerar novo QR Code",
              animFocoQr[0], animBotao, ptFocoQr, 0);
-      pilula(NV_TELA_W * 0.5f, y + LG_PILL_H + 24.0f, LG_EMAIL_PILL_W, "Entrar com e-mail e senha",
-             animFocoQr[1], animBotao, ptFocoQr, 1);
       break;
     }
   }

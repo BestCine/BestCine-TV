@@ -599,7 +599,7 @@ static void figAtualizar(float x, float y, float a) {
     gfx_cor(c, 16.0f / c.h, 0.085f, 0.088f, 0.098f, a);
     barra(x + 24.0f, y2 + 24.0f, 190.0f, 14.0f, 0.38f, a * 0.85f);
     { TxtLinha t = txt_linha_corta(TXT_MINI,
-        "github.com/iqui27/nuvio-native-legacy/releases",
+        "github.com/BestCine/BestCine-TV/releases",
         150, 154, 165, 255, pw - 48.0f);
       txt_desenhar_alpha(t, x + 24.0f, y2 + 58.0f, a * 0.85f); }
     { TxtLinha t = txt_linha(TXT_MINI, i18n("OK para fechar"),

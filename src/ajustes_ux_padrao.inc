@@ -353,3 +353,5 @@
   0, /* gradient smoothing: Automatic */
   0, /* hero logo and information size: Normal */
   0, /* folder hero details: On (V_LIGA 0) */
+  0, /* BestCine account info/refresh action */
+  0, /* BestCine anti-block DNS (DoH): 0 = Cloudflare (1.1.1.1) */
