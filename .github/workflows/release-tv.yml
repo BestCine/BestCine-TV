@@ -1,0 +1,354 @@
+name: Build & Release BestCine TV
+
+# Compila os instaladores oficiais do BestCine TV para todas as Smart TVs:
+#   - LG webOS 3+ (.ipk + -highcache.ipk + repo.json + webosbrew.manifest.json)
+#   - Samsung Tizen 4.0-9.0 nativo (.tpk: NuvioTpk40, NuvioTpk60, NuvioTpk65, NuvioTpk)
+#   - Samsung Tizen 5.5+ WebAssembly (.wgt)
+#   - Android TV / Google TV 7+ (.apk: arm64-v8a e armeabi-v7a)
+# e publica tudo automaticamente na Release GitHub (ex.: v1.0.0).
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag da release (vazio usa v<version> de deploy/app/appinfo.json)"
+        default: ""
+      publicar_release:
+        description: "Publicar automaticamente na aba Releases"
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-tv-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. LG webOS (.ipk + highcache + repo.json do Homebrew Channel)
+  # ---------------------------------------------------------------------------
+  webos:
+    name: LG webOS (.ipk + repo.json)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    env:
+      NUVIO_P2P_MOTOR: none
+      NUVIO_BUILD_PLATFORM: linux/arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Node.js e ares-package (webOS CLI)
+        run: |
+          npm install -g @webos-tools/cli
+          which ares-package
+
+      - name: Preparar imagem Docker SDK webOS (ARM64 nativo)
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compilar imagem nuvio-webos-sdk (com cache)
+        uses: docker/build-push-action@v6
+        with:
+          context: tools
+          file: tools/Dockerfile
+          platforms: linux/arm64
+          load: true
+          tags: nuvio-webos-sdk:latest
+          cache-from: type=gha,scope=webos-sdk
+          cache-to: type=gha,mode=max,scope=webos-sdk
+
+      - name: Compilar BestCine TV (.ipk normal e high-cache)
+        run: |
+          set -o pipefail
+          export NUVIO_ARES_PACKAGE="$(which ares-package)"
+          export NUVIO_RELEASE_OUT="$PWD/dist-webos"
+          mkdir -p "$NUVIO_RELEASE_OUT"
+          bash tools/arm.sh --ipk --build 2>&1 | tee build-webos.log
+          bash tools/arm.sh --high-cache --ipk --build 2>&1 | tee -a build-webos.log
+          VER=$(python3 -c 'import json; print(json.load(open("deploy/app/appinfo.json"))["version"])')
+          bash tools/hb-repo.sh "$NUVIO_RELEASE_OUT/com.bestcine.tv_${VER}_arm.ipk" "$NUVIO_RELEASE_OUT"
+          ls -lh "$NUVIO_RELEASE_OUT"
+
+      - name: Resumo em caso de erro
+        if: failure()
+        run: |
+          echo '### webOS build failed (ultimas 80 linhas)' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 80 build-webos.log >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artefatos LG webOS
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-webos
+          path: dist-webos/*
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 2. Samsung Tizen 4.0-9.0 nativo (.tpk)
+  # ---------------------------------------------------------------------------
+  tizen-tpk:
+    name: Samsung Tizen nativo (.tpk)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      NV_TPK_PACOTES: "NuvioTpk40 NuvioTpk60 NuvioTpk65 NuvioTpk"
+      NUVIO_P2P_MOTOR: none
+      DOTNET_ROOT: ${{ github.workspace }}/.dotnet
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      NUVIO_TPK_CACHE: ${{ github.workspace }}/.cache/nuvio-tpk
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Habilitar emulacao ARM para Docker
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm
+
+      - name: Restaurar cache das dependencias estaticas TPK
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.NUVIO_TPK_CACHE }}
+          key: tpk-deps-${{ hashFiles('tools/tpk/Dockerfile', 'tools/tpk/deps.sh') }}
+
+      - name: Restaurar cache FFmpeg (DTS)
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.NUVIO_TPK_CACHE }}/prefix-dts
+          key: tpk-dts-ffmpeg-${{ hashFiles('tools/build-dts-ffmpeg.sh') }}
+
+      - name: Instalar .NET 8 e workload Samsung Tizen
+        run: |
+          curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0 --install-dir "$DOTNET_ROOT"
+          export PATH="$DOTNET_ROOT:$PATH"
+          curl -fsSL https://raw.githubusercontent.com/Samsung/Tizen.NET/main/workload/scripts/workload-install.sh -o workload-install.sh
+          bash workload-install.sh
+
+      - name: Instalar ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Ajustar plataforma ARM para QEMU
+        run: sed -i 's#linux/arm/v5#linux/arm#g' tools/tpk.sh
+
+      - name: Compilar os 4 pacotes Samsung Tizen (.tpk)
+        run: |
+          export PATH="$DOTNET_ROOT:$PATH"
+          set -o pipefail
+          bash tools/tpk.sh 2>&1 | tee build-tpk.log
+          mkdir -p dist-tpk
+          for f in build/tpk/*.tpk; do
+            base="$(basename "$f")"
+            novo="${base/#Nuvio-/BestCineTV-}"
+            cp "$f" "dist-tpk/$novo"
+          done
+          ls -lh dist-tpk
+
+      - name: Salvar cache TPK
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.NUVIO_TPK_CACHE }}
+          key: tpk-deps-${{ hashFiles('tools/tpk/Dockerfile', 'tools/tpk/deps.sh') }}
+
+      - name: Verificar FFmpeg DTS
+        id: dts
+        if: always()
+        run: |
+          if [ -f "$NUVIO_TPK_CACHE/prefix-dts/.carimbo" ]; then echo "pronto=1" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Salvar cache FFmpeg DTS
+        if: always() && steps.dts.outputs.pronto == '1'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.NUVIO_TPK_CACHE }}/prefix-dts
+          key: tpk-dts-ffmpeg-${{ hashFiles('tools/build-dts-ffmpeg.sh') }}
+
+      - name: Resumo em caso de erro
+        if: failure()
+        run: |
+          echo '### Tizen TPK failed (ultimas 80 linhas)' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 80 build-tpk.log >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artefatos Samsung TPK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-tpk
+          path: dist-tpk/*.tpk
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 3. Samsung Tizen 5.5+ WebAssembly (.wgt)
+  # ---------------------------------------------------------------------------
+  tizen-wgt:
+    name: Samsung Tizen WASM (.wgt)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar dependencias de sistema
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg zip meson ninja-build pkg-config autoconf automake libtool
+
+      - name: Configurar Emscripten SDK
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Restaurar cache libass WASM
+        uses: actions/cache@v4
+        with:
+          path: build/ass-wasm
+          key: ass-wasm-${{ hashFiles('tools/build-ass-wasm.sh') }}
+
+      - name: Compilar libass WASM (se necessario)
+        run: |
+          if [ ! -f build/ass-wasm/lib/libass.a ]; then
+            bash tools/build-ass-wasm.sh
+          fi
+
+      - name: Compilar BestCine TV (.wgt)
+        run: |
+          set -o pipefail
+          VER=$(python3 -c 'import json; print(json.load(open("deploy/app/appinfo.json"))["version"])')
+          export NUVIO_WGT_NOME="BestCineTV-${VER}-tizen"
+          bash tools/tizen.sh 2>&1 | tee build-wgt.log
+          bash tools/tizen-wgt.sh 2>&1 | tee -a build-wgt.log
+          mkdir -p dist-wgt
+          cp build/*.wgt dist-wgt/
+          ls -lh dist-wgt
+
+      - name: Resumo em caso de erro
+        if: failure()
+        run: |
+          echo '### Tizen WGT failed (ultimas 80 linhas)' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 80 build-wgt.log >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artefato Samsung WGT
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-wgt
+          path: dist-wgt/*.wgt
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 4. Android TV / Google TV 7+ (.apk arm64 + armv7)
+  # ---------------------------------------------------------------------------
+  android-tv:
+    name: Android TV / Google TV (.apk)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      NUVIO_P2P_MOTOR: none
+      NUVIO_APK_LITE: "1"
+      NUVIO_RUST_MKVCORE: "0"
+      NUVIO_ANDROID_CACHE: ${{ github.workspace }}/.cache/nuvio-android
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Instalar pacotes Android SDK/NDK 27 + ferramentas
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg ninja-build cmake
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "ndk;27.2.12479018" "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1" >/dev/null
+
+      - name: Restaurar cache dependencias nativas Android
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUVIO_ANDROID_CACHE }}
+          key: android-deps-${{ hashFiles('tools/android/deps.sh') }}
+
+      - name: Compilar libcurl/libjpeg/libwebp para Android
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
+          bash tools/android/deps.sh arm64-v8a armeabi-v7a
+
+      - name: Compilar APKs BestCine TV (arm64 e armv7)
+        run: |
+          set -o pipefail
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
+          bash tools/android.sh --debug-only 2>&1 | tee build-android.log
+          VER=$(python3 -c 'import json; print(json.load(open("deploy/app/appinfo.json"))["version"])')
+          mkdir -p dist-android
+          cp "build/android/Nuvio-${VER}-android-lite-arm64-debug.apk" "dist-android/BestCineTV-${VER}-android-tv-arm64.apk"
+          cp "build/android/Nuvio-${VER}-android-lite-armv7-debug.apk" "dist-android/BestCineTV-${VER}-android-tv-armv7.apk"
+          ls -lh dist-android
+
+      - name: Resumo em caso de erro
+        if: failure()
+        run: |
+          echo '### Android TV build failed (ultimas 80 linhas)' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 80 build-android.log >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artefatos Android TV
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-android
+          path: dist-android/*.apk
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 5. Publicar Release no GitHub com todos os instaladores compilados
+  # ---------------------------------------------------------------------------
+  publish-release:
+    name: Publicar Release BestCine TV
+    needs: [webos, tizen-tpk, tizen-wgt, android-tv]
+    if: always() && (github.event.inputs.publicar_release != 'false') && (needs.webos.result == 'success' || needs.tizen-tpk.result == 'success' || needs.tizen-wgt.result == 'success' || needs.android-tv.result == 'success')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Baixar artefatos gerados
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Criar/atualizar Release no GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=$(python3 -c 'import json; print(json.load(open("deploy/app/appinfo.json"))["version"])')
+          TAG="${{ github.event.inputs.tag }}"
+          [ -n "$TAG" ] || TAG="v${VER}"
+          ls -lh release-assets
+
+          printf '%s\n' \
+            "## BestCine TV — Smart TVs (LG webOS, Samsung Tizen e Android TV)" \
+            "" \
+            "Aplicativo nativo em **C / SDL2 / OpenGL ES 2** para Smart TVs (60 FPS), fork GPL-3.0 baseado no excelente **[iqui27/nuvio-native-legacy](https://github.com/iqui27/nuvio-native-legacy)**." \
+            "" \
+            "### Recursos incluidos" \
+            "- **Login por QR Code + codigo de 6 digitos** via \`https://bestcine.dpdns.org/tv\` (sem digitar senha no controle remoto)." \
+            "- **Configuracao automatica** da conta BestCine, plano e catalogos (filmes, series e TV ao Vivo com EPG)." \
+            "- **DNS Proprio Anti-Bloqueio (DoH)** (Cloudflare 1.1.1.1 padrao / Google 8.8.8.8 / Sistema), inclusive em LG webOS antigas (\`libcurl 7.53\`)." \
+            "- **Secao Conta BestCine** em *Ajustes > Conta e servicos*." \
+            "" \
+            "### Como instalar" \
+            "- **LG webOS (Homebrew Channel):** adicione \`https://github.com/BestCine/BestCine-TV/releases/latest/download/repo.json\` ou instale o \`.ipk\` abaixo." \
+            "- **Samsung Tizen (Apps2Samsung):** escolha o \`.tpk\` do ano da sua TV (\`Tpk40\` 2018-2020, \`Tpk60\` 2021, \`Tpk65\` 2022-2023, \`Tpk\` 2024+) ou o \`.wgt\` (Tizen 5.5+)." \
+            "- **Android TV / Google TV:** instale o \`.apk\` (\`arm64\` para TVs modernas ou \`armv7\` para TV Boxes 32-bit)." \
+            "" \
+            "> **Creditos (GPL-3.0):** Baseado em [iqui27/nuvio-native-legacy](https://github.com/iqui27/nuvio-native-legacy) e [NuvioMedia](https://github.com/Tapframe)." \
+            > release-notes.md
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release-assets/* --clobber
+          else
+            gh release create "$TAG" release-assets/* \
+              --title "BestCine TV ${TAG}" \
+              --notes-file release-notes.md \
+              --target master
+          fi
