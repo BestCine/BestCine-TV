@@ -4,7 +4,7 @@ name: Build & Release BestCine TV
 #   - LG webOS 3+ (.ipk + -highcache.ipk + repo.json + webosbrew.manifest.json)
 #   - Samsung Tizen 4.0-9.0 nativo (.tpk: NuvioTpk40, NuvioTpk60, NuvioTpk65, NuvioTpk)
 #   - Samsung Tizen 5.5+ WebAssembly (.wgt)
-#   - Android TV / Google TV 7+ (.apk: arm64-v8a e armeabi-v7a)
+#   - Android TV / Google TV 7+ (um APK universal: arm64-v8a + armeabi-v7a)
 # e publica tudo automaticamente na Release GitHub (ex.: v1.0.0).
 
 on:
@@ -309,7 +309,7 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # 4. Android TV / Google TV 7+ (.apk arm64 + armv7)
+  # 4. Android TV / Google TV 7+ (.apk universal arm64 + armv7)
   # ---------------------------------------------------------------------------
   android-tv:
     name: Android TV / Google TV (.apk)
@@ -366,16 +366,15 @@ jobs:
             printf 'SIMKL_APP_NAME=BestCine\n'
           } > local.properties
 
-      - name: Compilar APKs BestCine TV (arm64 e armv7)
+      - name: Compilar APK universal BestCine TV (arm64 e armv7)
         run: |
           set -o pipefail
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
           bash tools/android.sh --debug-only 2>&1 | tee build-android.log
           VER=$(python3 -c 'import json; print(json.load(open("deploy/app/appinfo.json"))["version"])')
           mkdir -p dist-android
-          # Sufixo -android-lite-{arm64,armv7}.apk exigido pelo auto-updater nativo (src/atualizacao.c)
-          cp "build/android/Nuvio-${VER}-android-lite-arm64-debug.apk" "dist-android/BestCineTV-${VER}-android-lite-arm64.apk"
-          cp "build/android/Nuvio-${VER}-android-lite-armv7-debug.apk" "dist-android/BestCineTV-${VER}-android-lite-armv7.apk"
+          # APK único com os dois ABIs; o atualizador procura este sufixo.
+          cp "build/android/Nuvio-${VER}-android-lite-universal-debug.apk" "dist-android/BestCineTV-android-lite-universal.apk"
           ls -lh dist-android
 
       - name: Resumo em caso de erro
@@ -434,7 +433,7 @@ jobs:
             "### Como instalar" \
             "- **LG webOS (Homebrew Channel):** adicione \`https://github.com/BestCine/BestCine-TV/releases/latest/download/repo.json\` ou instale o \`.ipk\` abaixo." \
             "- **Samsung Tizen (Apps2Samsung):** escolha o \`.tpk\` do ano da sua TV (\`Tpk40\` 2018-2020, \`Tpk60\` 2021, \`Tpk65\` 2022-2023, \`Tpk\` 2024+) ou o \`.wgt\` (Tizen 5.5+)." \
-            "- **Android TV / Google TV:** instale o \`.apk\` (\`arm64\` para TVs modernas ou \`armv7\` para TV Boxes 32-bit)." \
+            "- **Android TV / Google TV:** instale o APK universal, que inclui \`arm64-v8a\` e \`armeabi-v7a\`." \
             "" \
             "> **Creditos (GPL-3.0):** Baseado em [iqui27/nuvio-native-legacy](https://github.com/iqui27/nuvio-native-legacy) e [NuvioMedia](https://github.com/Tapframe)." \
             > release-notes.md

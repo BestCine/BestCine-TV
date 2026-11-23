@@ -32,7 +32,8 @@ android {
         targetSdk = 35
         versionCode = vx * 10000 + vy * 100 + vz
         versionName = versao
-        ndk { if (!lite) abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        // O APK Lite leva as duas arquiteturas ARM para atender TVs 32 e 64 bits.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         externalNativeBuild {
             cmake {
                 arguments += listOf(
@@ -49,14 +50,7 @@ android {
         }
     }
 
-    splits {
-        abi {
-            isEnable = lite
-            reset()
-            include("armeabi-v7a", "arm64-v8a")
-            isUniversalApk = false
-        }
-    }
+    // Sem splits de ABI: um APK inclui as bibliotecas arm32 e arm64.
 
     externalNativeBuild {
         cmake {
