@@ -974,9 +974,8 @@ static int jfi_fontes_colher(JfInst *I, const char *alvo, Stream **lista, int *n
 static int jfi_ficha(JfInst *I, CatItem *item, CatEp *eps, int maxEps);
 
 
-int jellyfin_disponivel(void) {
-  return jellyfin_backend() != JF_BACKEND_WGT && (rede_pedido_capacidades() & REDE_CAP_JOB);
-}
+// BestCine TV: fork fechado — servidores pessoais externos (Jellyfin/Emby/Plex) desativados.
+int jellyfin_disponivel(void) { return 0; }
 
 static void *trabalharCtl(void *u);
 static void *trabalharRel(void *u);
