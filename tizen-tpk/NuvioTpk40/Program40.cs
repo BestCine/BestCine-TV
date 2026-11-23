@@ -925,7 +925,7 @@ namespace NuvioTpk
                 coluna.Show();
                 janelaAviso.AddResizeObject(coluna);
                 Linha(janelaAviso, coluna, texto, 34);
-                Linha(janelaAviso, coluna, "Please photograph this and attach it to GitHub issue #180 (iqui27/nuvio-native-legacy). Press any key to hide.", 24);
+                Linha(janelaAviso, coluna, "Envie uma foto desta tela no Discord do BestCine (github.com/BestCine/BestCine-TV). Qualquer tecla oculta.", 24);
                 janelaAviso.Show();
                 EcoreMainloop.AddTimer(30.0, () => { FecharAviso(); return false; });
             }

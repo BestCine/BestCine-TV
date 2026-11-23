@@ -1429,19 +1429,29 @@ static void bcAplicarDoh(void *c, const char *url) {
   char host[128], ip[48], ent[200];
   int porta = 443;
   if (modo == REDE_DNS_SISTEMA || !bcPrecisaDoh(url, host, sizeof host, &porta)) {
+#ifndef NV_TPK
     if (curlVersionNum >= 0x073e00) curl_setopt_f(c, OPT_DOH_URL, (const char *)NULL);
+#endif
     curl_setopt_f(c, OPT_RESOLVE, (void *)NULL);
     return;
   }
+#ifndef NV_TPK
+  // Em Tizen (NV_TPK), dnsShare (CURLOPT_SHARE + CURL_LOCK_DATA_DNS) conflita
+  // com CURLOPT_DOH_URL interno da libcurl em requisicoes paralelas no boot
+  // (crash nativo no Tizen 8/9). No Tizen usamos sempre o motor JSON+OPT_RESOLVE
+  // abaixo, mantendo o Anti-Bloqueio (Cloudflare 1.1.1.1 / Google 8.8.8.8) 100% ativo.
   if (curlVersionNum >= 0x073e00) {
     const char *doh = modo == REDE_DNS_GOOGLE
       ? "https://8.8.8.8/dns-query"
       : "https://1.1.1.1/dns-query";
     curl_setopt_f(c, OPT_DOH_URL, doh);
-    curl_setopt_f(c, OPT_DOH_SSL_VERIFYPEER, 0L);
-    curl_setopt_f(c, OPT_DOH_SSL_VERIFYHOST, 0L);
+    if (curlVersionNum >= 0x074c00) {
+      curl_setopt_f(c, OPT_DOH_SSL_VERIFYPEER, 0L);
+      curl_setopt_f(c, OPT_DOH_SSL_VERIFYHOST, 0L);
+    }
     return;
   }
+#endif
   if (slist_append && slist_free && bcDohResolver(host, modo, ip, sizeof ip)) {
     void *antiga, *nova = NULL;
     pthread_once(&bcDohListaUma, bcDohListaCriar);
@@ -1453,6 +1463,8 @@ static void bcAplicarDoh(void *c, const char *url) {
       pthread_setspecific(bcDohListaChave, nova);
       if (antiga) slist_free(antiga);
     }
+  } else {
+    curl_setopt_f(c, OPT_RESOLVE, (void *)NULL);
   }
 }
 
@@ -1785,6 +1797,7 @@ static void *pegarHandle(const char *url) {
 // reaproveitado (e o ganho de 0,5-0,8 s por imagem). Conexao que fica anota o
 // host (e o do fim dos redirecionamentos) para o limite de ociosidade.
 static void descartarHandle(void *c) {
+  if (c && curl_setopt_f) curl_setopt_f(c, OPT_RESOLVE, (void *)NULL);
   curl_cleanup(c);
   if (curl_reset) {
     pthread_setspecific(handleChave, NULL);
@@ -1826,6 +1839,7 @@ static void soltarHandleDesde(void *c, int r, const char *url, unsigned primeira
     }
   }
   if (!curl_reset || r != 0) { descartarHandle(c); return; }
+  if (curl_setopt_f) curl_setopt_f(c, OPT_RESOLVE, (void *)NULL);
   { unsigned long agora = redeAgoraMs();
     char *fim = NULL;
     hostUsado(url, agora);
@@ -2261,7 +2275,11 @@ static int abrirReal(void) {
                   v->age >= 1 && v->ares ? "c-ares/" :
                   (v->features & (1 << 7)) ? "threaded" : "no (synchronous)",
                   v->age >= 1 && v->ares ? v->ares : "",
+#ifdef NV_TPK
+                  "json+resolve (tpk)");
+#else
                   curlVersionNum >= 0x073e00 ? "native" : "json+resolve");
+#endif
     else printf("[rede] curl_version_info indisponivel\n");
 #ifdef NV_TPK
     prepararDns(h, v && v->age >= 1 ? v->ares : NULL);

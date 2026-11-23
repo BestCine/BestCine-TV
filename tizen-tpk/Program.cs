@@ -758,12 +758,12 @@ namespace NuvioTpk
                 w.BackgroundColor = NuiColor.Black;
                 telaParado = new NuiLabel
                 {
-                    Text = "Nuvio started, but the TV stopped drawing its window.\n\n" +
+                    Text = "BestCine TV iniciou, mas a TV parou de desenhar a janela.\n\n" +
                            "Drawn " + trocados + " frame(s), " + chamadas + " draw call(s), none for " + (parado / 1000) + " s. " +
                            "Main window visible=" + principalVisivel + ", Nuvio window visible=" + glVisivel + ", raised " + subidas + " time(s).\n" +
                            "TV " + Tv() + " / host " + Host + " / " + RuntimeInformation.FrameworkDescription +
                            (etapaAnterior != null ? "\nPrevious launch stopped at: " + etapaAnterior : "") +
-                           "\n\nPlease post a PHOTO of this screen in issue #170 on GitHub (iqui27/nuvio-native-legacy). Back closes.",
+                           "\n\nEnvie uma foto desta tela no Discord do BestCine (github.com/BestCine/BestCine-TV). Voltar fecha.",
                     MultiLine = true, TextColor = NuiColor.White, PointSize = 20,
                     Size2D = new Size2D(W - 160, H - 160), Position2D = new Position2D(80, 80),
                 };
@@ -911,7 +911,7 @@ namespace NuvioTpk
                 {
                     var r = new NuiLabel
                     {
-                        Text = texto + "\nPlease photograph this and post it in GitHub issue #170 (iqui27/nuvio-native-legacy). Any key hides it.",
+                        Text = texto + "\nEnvie uma foto desta tela no Discord do BestCine (github.com/BestCine/BestCine-TV). Qualquer tecla oculta.",
                         MultiLine = true, TextColor = NuiColor.White, PointSize = 16, BackgroundColor = NuiColor.Black,
                         Size2D = new Size2D(W, 240), Position2D = new Position2D(0, 0), Padding = new Extents(40, 40, 10, 10),
                     };
@@ -926,7 +926,7 @@ namespace NuvioTpk
                 janelaAviso.BackgroundColor = NuiColor.Black;
                 janelaAviso.Add(new NuiLabel
                 {
-                    Text = texto + "\nPlease photograph this and post it in GitHub issue #170 (iqui27/nuvio-native-legacy). Any key hides it.",
+                    Text = texto + "\nEnvie uma foto desta tela no Discord do BestCine (github.com/BestCine/BestCine-TV). Qualquer tecla oculta.",
                     MultiLine = true, TextColor = NuiColor.White, PointSize = 16,
                     Size2D = new Size2D(W - 80, 220), Position2D = new Position2D(40, 10),
                 });
