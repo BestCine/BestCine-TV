@@ -605,3 +605,123 @@ void perfis_esquecer(void) {
   dados_apagar(ARQ_LISTA);
   printf("[perfis] perfis esquecidos (saiu da conta)\n");
 }
+
+// --- PERFIS LOCAIS BESTCINE TV -----------------------------------------------
+static void bcTrimNome(const char *src, char *dst, size_t tam) {
+  size_t len = 0;
+  if (!tam) return;
+  dst[0] = 0;
+  if (!src) return;
+  while (*src == ' ' || *src == '\t' || *src == '\n' || *src == '\r') src++;
+  len = strlen(src);
+  while (len > 0 && (src[len - 1] == ' ' || src[len - 1] == '\t' ||
+                     src[len - 1] == '\n' || src[len - 1] == '\r')) len--;
+  if (len >= tam) len = tam - 1;
+  memcpy(dst, src, len);
+  dst[len] = 0;
+}
+
+void perfis_bc_garantir_padrao(const char *nomeConta) {
+  char limpoNome[64];
+  int i, mudou = 0, ativoExiste = 0;
+  bcTrimNome(nomeConta, limpoNome, sizeof limpoNome);
+  pthread_once(&sessaoUmaVez, sessaoTravaIniciar);
+  pthread_mutex_lock(&sessaoTrava);
+  if (n <= 0) {
+    memset(&lista[0], 0, sizeof lista[0]);
+    lista[0].indice = 1;
+    lista[0].primario = 1;
+    lista[0].usaAddonsDoPrimario = 1;
+    snprintf(lista[0].corHex, sizeof lista[0].corHex, "#1E6BFF");
+    snprintf(lista[0].nome, sizeof lista[0].nome, "%s",
+             limpoNome[0] ? limpoNome : "Principal");
+    n = 1;
+    mudou = 1;
+  } else if (limpoNome[0]) {
+    int pri = 0;
+    for (i = 0; i < n; i++) if (lista[i].primario) { pri = i; break; }
+    if (!lista[pri].nome[0] || !strcmp(lista[pri].nome, "Principal")) {
+      snprintf(lista[pri].nome, sizeof lista[pri].nome, "%s", limpoNome);
+      mudou = 1;
+    }
+  }
+  for (i = 0; i < n; i++) {
+    if (lista[i].indice == atomic_load_explicit(&ativo, memory_order_acquire)) {
+      ativoExiste = 1;
+      break;
+    }
+  }
+  if (!ativoExiste && n > 0)
+    atomic_store_explicit(&ativo, lista[0].indice, memory_order_release);
+  if (mudou) gravarCache();
+  pthread_mutex_unlock(&sessaoTrava);
+}
+
+int perfis_bc_criar(const char *nome) {
+  static const char *CORES[6] = {
+    "#1E6BFF", "#10B981", "#F59E0B", "#EC4899", "#8B5CF6", "#06B6D4"
+  };
+  char limpoNome[64];
+  int i, idx = 0, corIdx = 0, slot = -1;
+  bcTrimNome(nome, limpoNome, sizeof limpoNome);
+  if (!limpoNome[0]) return -1;
+
+  pthread_once(&sessaoUmaVez, sessaoTravaIniciar);
+  pthread_mutex_lock(&sessaoTrava);
+  if (n >= 6 || n >= CONTA_PERFIL_MAX) {
+    pthread_mutex_unlock(&sessaoTrava);
+    return -1;
+  }
+  for (idx = 2; idx <= CONTA_PERFIL_MAX; idx++) {
+    int usado = 0;
+    for (i = 0; i < n; i++) if (lista[i].indice == idx) { usado = 1; break; }
+    if (!usado) break;
+  }
+  if (idx > CONTA_PERFIL_MAX) {
+    pthread_mutex_unlock(&sessaoTrava);
+    return -1;
+  }
+  corIdx = (idx - 1) % 6;
+  for (i = 0; i < 6; i++) {
+    int c = (corIdx + i) % 6, usada = 0, j;
+    for (j = 0; j < n; j++)
+      if (!strcmp(lista[j].corHex, CORES[c])) { usada = 1; break; }
+    if (!usada) { corIdx = c; break; }
+  }
+  slot = n;
+  memset(&lista[slot], 0, sizeof lista[slot]);
+  lista[slot].indice = idx;
+  lista[slot].primario = 0;
+  lista[slot].temPin = 0;
+  lista[slot].usaAddonsDoPrimario = 1;
+  snprintf(lista[slot].corHex, sizeof lista[slot].corHex, "%s", CORES[corIdx]);
+  snprintf(lista[slot].nome, sizeof lista[slot].nome, "%s", limpoNome);
+  n++;
+  gravarCache();
+  pthread_mutex_unlock(&sessaoTrava);
+  printf("[perfis] perfil local criado: slot=%d indice=%d nome=%s\n", slot, idx, limpoNome);
+  return slot;
+}
+
+int perfis_bc_remover(int slot) {
+  int i, removido, precisaTrocar = 0, novoAtivo = 1;
+  pthread_once(&sessaoUmaVez, sessaoTravaIniciar);
+  pthread_mutex_lock(&sessaoTrava);
+  if (slot < 0 || slot >= n || lista[slot].primario || lista[slot].indice <= 1) {
+    pthread_mutex_unlock(&sessaoTrava);
+    return 0;
+  }
+  removido = lista[slot].indice;
+  for (i = slot; i + 1 < n; i++) lista[i] = lista[i + 1];
+  n--;
+  memset(&lista[n], 0, sizeof lista[n]);
+  gravarCache();
+  if (atomic_load_explicit(&ativo, memory_order_acquire) == removido && n > 0) {
+    precisaTrocar = 1;
+    novoAtivo = lista[0].indice;
+  }
+  pthread_mutex_unlock(&sessaoTrava);
+  if (precisaTrocar) perfis_definir_ativo(novoAtivo);
+  printf("[perfis] perfil local removido: indice=%d\n", removido);
+  return 1;
+}

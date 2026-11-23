@@ -188,10 +188,11 @@ void login_iniciar(void) {
   modo = LG_QR; foco = LE_EMAIL; focoQr = 0; campoAberto = -1; aviso[0] = 0; esperando = 0;
   senhaVisivel = 0;
   apagarTexto(senha, sizeof senha);
-  // Pedir o codigo JA, sem esperar o OK: a pessoa que acabou de instalar o app
-  // nao tem nada para decidir nesta tela, e um botao "entrar" antes do codigo
-  // so acrescenta um toque e uns segundos de espera depois dele.
-  if (!sessao_logada()) sessao_login_comecar();
+  // Pedir o codigo JA, sem esperar o OK — exceto quando a sessao acabou de ser
+  // encerrada por banimento/suspensao ou token revogado, para a pessoa ver o
+  // motivo na tela antes de gerar um novo QR Code.
+  if (!sessao_logada() && !(sessao_estado() == SES_ERRO && sessao_erro()[0]))
+    sessao_login_comecar();
 }
 
 void login_evento(const SDL_Event *e) {

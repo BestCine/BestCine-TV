@@ -33,12 +33,12 @@ Escrito em **C nativo sobre SDL2 e OpenGL ES 2**, ele conversa diretamente com o
 | Plataforma | Modelos / Versões | Formato do pacote | Status |
 |---|---|---|---|
 | **LG webOS** | webOS 3.x, 4.x, 5.x, 6.x, 22, 23, 24+ | `.ipk` (Homebrew Channel) | Nativo (C / SDL2 / GLES2) |
-| **Samsung Tizen (2018–2020)** | Tizen 4.0 – 5.5 (`NU / RU / TU`) | `BestCineTV-1.0.0-NuvioTpk40.tpk` | Nativo (C / OpenGL ES) |
-| **Samsung Tizen (2021)** | Tizen 6.0 (`AU / Q60A / Q70A / Q80A`) | `BestCineTV-1.0.0-NuvioTpk60.tpk` | Nativo (C / OpenGL ES) |
-| **Samsung Tizen (2022–2023)** | Tizen 6.5 – 7.0 (`BU / CU / Q60B / Q60C`) | `BestCineTV-1.0.0-NuvioTpk65.tpk` | Nativo (C / OpenGL ES) |
-| **Samsung Tizen (2024+)** | Tizen 8.0 – 9.0 (`DU / Q60D / S90D+`) | `BestCineTV-1.0.0-NuvioTpk.tpk` | Nativo (C / OpenGL ES) |
-| **Samsung Tizen (WebAssembly)** | Tizen 5.5+ (alternativo) | `BestCineTV-1.0.0-tizen.wgt` | Alternativo (AVPlay) |
-| **Android TV / Google TV / Fire TV / TV Box** | Android 7.0+ (`armv7` / `arm64`) | `.apk` | Nativo (C / SDL2 / MediaCodec) |
+| **Samsung Tizen (2018–2020)** | Tizen 4.0 – 5.5 (`NU / RU / TU`) | `BestCineTV-1.0.1-NuvioTpk40.tpk` | Nativo (C / OpenGL ES) |
+| **Samsung Tizen (2021)** | Tizen 6.0 (`AU / Q60A / Q70A / Q80A`) | `BestCineTV-1.0.1-NuvioTpk60.tpk` | Nativo (C / OpenGL ES) |
+| **Samsung Tizen (2022–2023)** | Tizen 6.5 – 7.0 (`BU / CU / Q60B / Q60C`) | `BestCineTV-1.0.1-NuvioTpk65.tpk` | Nativo (C / OpenGL ES) |
+| **Samsung Tizen (2024+)** | Tizen 8.0 – 9.0 (`DU / Q60D / S90D+`) | `BestCineTV-1.0.1-NuvioTpk.tpk` | Nativo (C / OpenGL ES) |
+| **Samsung Tizen (WebAssembly)** | Tizen 5.5+ (alternativo) | `BestCineTV-1.0.1-tizen.wgt` | Alternativo (AVPlay) |
+| **Android TV / Google TV / Fire TV / TV Box** | Android 7.0+ (`armv7` / `arm64`) | `BestCineTV-1.0.1-android-lite-*.apk` | Nativo (C / SDL2 / MediaCodec) |
 
 ---
 
@@ -95,21 +95,21 @@ Os pacotes Samsung são distribuídos sem assinatura de distribuidor para funcio
 
 | Versão do Tizen | Letras do modelo (Exemplos) | Linha | Arquivo recomendado |
 |---|---|---|---|
-| **Tizen 4.0 – 5.5** | `NU` / `RU` / `TU` *(ex.: TU7000, TU8000)* | 2018 – 2020 | `BestCineTV-1.0.0-NuvioTpk40.tpk` |
-| **Tizen 6.0** | `AU` / `Q60A` / `Q70A` / `Q80A` *(ex.: AU7700, AU8000)* | 2021 | `BestCineTV-1.0.0-NuvioTpk60.tpk` |
-| **Tizen 6.5 – 7.0** | `BU` / `CU` / `Q60B` / `Q60C` *(ex.: BU8000, CU7700)* | 2022 – 2023 | `BestCineTV-1.0.0-NuvioTpk65.tpk` |
-| **Tizen 8.0 – 9.0** | `DU` / `Q60D` / `S90D+` *(ex.: DU7700, DU8000)* | 2024+ | `BestCineTV-1.0.0-NuvioTpk.tpk` |
+| **Tizen 4.0 – 5.5** | `NU` / `RU` / `TU` *(ex.: TU7000, TU8000)* | 2018 – 2020 | `BestCineTV-1.0.1-NuvioTpk40.tpk` |
+| **Tizen 6.0** | `AU` / `Q60A` / `Q70A` / `Q80A` *(ex.: AU7700, AU8000)* | 2021 | `BestCineTV-1.0.1-NuvioTpk60.tpk` |
+| **Tizen 6.5 – 7.0** | `BU` / `CU` / `Q60B` / `Q60C` *(ex.: BU8000, CU7700)* | 2022 – 2023 | `BestCineTV-1.0.1-NuvioTpk65.tpk` |
+| **Tizen 8.0 – 9.0** | `DU` / `Q60D` / `S90D+` *(ex.: DU7700, DU8000)* | 2024+ | `BestCineTV-1.0.1-NuvioTpk.tpk` |
 
 > Se aparecer o erro `TypeLoadException` ao abrir, significa apenas que o `.tpk` instalado é de outra versão do Tizen — basta instalar o `.tpk` correspondente ao `tizen=X.X` exibido na tela.
-> Em TVs Tizen 5.5+, o pacote WebAssembly (`BestCineTV-1.0.0-tizen.wgt`) também pode ser usado como alternativa.
+> Em TVs Tizen 5.5+, o pacote WebAssembly (`BestCineTV-1.0.1-tizen.wgt`) também pode ser usado como alternativa.
 
 ---
 
 ### Android TV / Google TV / Fire TV Stick / TV Box
 
 1. Baixe o `.apk` na página de [Releases](https://github.com/BestCine/BestCine-TV/releases/latest):
-   - **`BestCineTV-1.0.0-android-tv-armv7.apk`** — Recomendado para **Fire TV Stick (Lite, HD, 4K)**, **Mi TV Stick** e **TV Boxes 32-bit**.
-   - **`BestCineTV-1.0.0-android-tv-arm64.apk`** — Recomendado para **Android TV / Google TV modernas (64-bit)**, Chromecast 4K, Shield e Fire TV 4K Max 2ª geração.
+   - **`BestCineTV-1.0.1-android-lite-armv7.apk`** — Recomendado para **Fire TV Stick (Lite, HD, 4K)**, **Mi TV Stick** e **TV Boxes 32-bit**.
+   - **`BestCineTV-1.0.1-android-lite-arm64.apk`** — Recomendado para **Android TV / Google TV modernas (64-bit)**, Chromecast 4K, Shield e Fire TV 4K Max 2ª geração.
 2. Instale na TV usando **Downloader**, **Send Files to TV** ou um pendrive USB.
 3. Abra o **BestCine TV** e escaneie o QR Code com o celular para entrar na sua conta.
 

@@ -72,6 +72,24 @@ jobs:
           cache-from: type=gha,scope=webos-sdk
           cache-to: type=gha,mode=max,scope=webos-sdk
 
+      - name: Preparar local.properties temporario (GitHub Secrets)
+        env:
+          TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
+          TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+        run: |
+          umask 077
+          {
+            [ -n "$TRAKT_CLIENT_ID" ] && printf 'TRAKT_CLIENT_ID=%s\n' "$TRAKT_CLIENT_ID"
+            [ -n "$TRAKT_CLIENT_SECRET" ] && printf 'TRAKT_CLIENT_SECRET=%s\n' "$TRAKT_CLIENT_SECRET"
+            [ -n "$SIMKL_CLIENT_ID" ] && printf 'SIMKL_CLIENT_ID=%s\n' "$SIMKL_CLIENT_ID"
+            [ -n "$TMDB_API_KEY" ] && printf 'TMDB_API_KEY=%s\n' "$TMDB_API_KEY"
+            [ -n "$DISCORD_CLIENT_ID" ] && printf 'DISCORD_CLIENT_ID=%s\n' "$DISCORD_CLIENT_ID"
+            printf 'SIMKL_APP_NAME=BestCine\n'
+          } > local.properties
+
       - name: Compilar BestCine TV (.ipk normal e high-cache)
         run: |
           set -o pipefail
@@ -146,6 +164,24 @@ jobs:
       - name: Ajustar plataforma ARM para QEMU
         run: sed -i 's#linux/arm/v5#linux/arm#g' tools/tpk.sh
 
+      - name: Preparar local.properties temporario (GitHub Secrets)
+        env:
+          TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
+          TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+        run: |
+          umask 077
+          {
+            [ -n "$TRAKT_CLIENT_ID" ] && printf 'TRAKT_CLIENT_ID=%s\n' "$TRAKT_CLIENT_ID"
+            [ -n "$TRAKT_CLIENT_SECRET" ] && printf 'TRAKT_CLIENT_SECRET=%s\n' "$TRAKT_CLIENT_SECRET"
+            [ -n "$SIMKL_CLIENT_ID" ] && printf 'SIMKL_CLIENT_ID=%s\n' "$SIMKL_CLIENT_ID"
+            [ -n "$TMDB_API_KEY" ] && printf 'TMDB_API_KEY=%s\n' "$TMDB_API_KEY"
+            [ -n "$DISCORD_CLIENT_ID" ] && printf 'DISCORD_CLIENT_ID=%s\n' "$DISCORD_CLIENT_ID"
+            printf 'SIMKL_APP_NAME=BestCine\n'
+          } > local.properties
+
       - name: Compilar os 4 pacotes Samsung Tizen (.tpk)
         run: |
           export PATH="$DOTNET_ROOT:$PATH"
@@ -157,6 +193,8 @@ jobs:
             novo="${base/#Nuvio-/BestCineTV-}"
             cp "$f" "dist-tpk/$novo"
           done
+          # Bibliotecas nativas para auto-atualizacao direta na TV Samsung (.tpk)
+          cp build/tpk/libnuvio-*.so dist-tpk/ 2>/dev/null || true
           ls -lh dist-tpk
 
       - name: Salvar cache TPK
@@ -191,7 +229,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dist-tpk
-          path: dist-tpk/*.tpk
+          path: dist-tpk/*
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
@@ -224,6 +262,24 @@ jobs:
           if [ ! -f build/ass-wasm/lib/libass.a ]; then
             bash tools/build-ass-wasm.sh
           fi
+
+      - name: Preparar local.properties temporario (GitHub Secrets)
+        env:
+          TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
+          TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+        run: |
+          umask 077
+          {
+            [ -n "$TRAKT_CLIENT_ID" ] && printf 'TRAKT_CLIENT_ID=%s\n' "$TRAKT_CLIENT_ID"
+            [ -n "$TRAKT_CLIENT_SECRET" ] && printf 'TRAKT_CLIENT_SECRET=%s\n' "$TRAKT_CLIENT_SECRET"
+            [ -n "$SIMKL_CLIENT_ID" ] && printf 'SIMKL_CLIENT_ID=%s\n' "$SIMKL_CLIENT_ID"
+            [ -n "$TMDB_API_KEY" ] && printf 'TMDB_API_KEY=%s\n' "$TMDB_API_KEY"
+            [ -n "$DISCORD_CLIENT_ID" ] && printf 'DISCORD_CLIENT_ID=%s\n' "$DISCORD_CLIENT_ID"
+            printf 'SIMKL_APP_NAME=BestCine\n'
+          } > local.properties
 
       - name: Compilar BestCine TV (.wgt)
         run: |
@@ -292,6 +348,24 @@ jobs:
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
           bash tools/android/deps.sh arm64-v8a armeabi-v7a
 
+      - name: Preparar local.properties temporario (GitHub Secrets)
+        env:
+          TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
+          TRAKT_CLIENT_SECRET: ${{ secrets.TRAKT_CLIENT_SECRET }}
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+        run: |
+          umask 077
+          {
+            [ -n "$TRAKT_CLIENT_ID" ] && printf 'TRAKT_CLIENT_ID=%s\n' "$TRAKT_CLIENT_ID"
+            [ -n "$TRAKT_CLIENT_SECRET" ] && printf 'TRAKT_CLIENT_SECRET=%s\n' "$TRAKT_CLIENT_SECRET"
+            [ -n "$SIMKL_CLIENT_ID" ] && printf 'SIMKL_CLIENT_ID=%s\n' "$SIMKL_CLIENT_ID"
+            [ -n "$TMDB_API_KEY" ] && printf 'TMDB_API_KEY=%s\n' "$TMDB_API_KEY"
+            [ -n "$DISCORD_CLIENT_ID" ] && printf 'DISCORD_CLIENT_ID=%s\n' "$DISCORD_CLIENT_ID"
+            printf 'SIMKL_APP_NAME=BestCine\n'
+          } > local.properties
+
       - name: Compilar APKs BestCine TV (arm64 e armv7)
         run: |
           set -o pipefail
@@ -299,8 +373,9 @@ jobs:
           bash tools/android.sh --debug-only 2>&1 | tee build-android.log
           VER=$(python3 -c 'import json; print(json.load(open("deploy/app/appinfo.json"))["version"])')
           mkdir -p dist-android
-          cp "build/android/Nuvio-${VER}-android-lite-arm64-debug.apk" "dist-android/BestCineTV-${VER}-android-tv-arm64.apk"
-          cp "build/android/Nuvio-${VER}-android-lite-armv7-debug.apk" "dist-android/BestCineTV-${VER}-android-tv-armv7.apk"
+          # Sufixo -android-lite-{arm64,armv7}.apk exigido pelo auto-updater nativo (src/atualizacao.c)
+          cp "build/android/Nuvio-${VER}-android-lite-arm64-debug.apk" "dist-android/BestCineTV-${VER}-android-lite-arm64.apk"
+          cp "build/android/Nuvio-${VER}-android-lite-armv7-debug.apk" "dist-android/BestCineTV-${VER}-android-lite-armv7.apk"
           ls -lh dist-android
 
       - name: Resumo em caso de erro

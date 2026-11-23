@@ -55,6 +55,9 @@ int         sessao_bc_manifest_url(char *dst, size_t n);
 // Atualiza plano/nome/status no servidor e desloga automaticamente se banido ou token invalido.
 // Devolve 1 = ativo, 0 = erro de rede (mantem sessao), -1 = banido/invalido (deslogou).
 int         sessao_bc_atualizar_status(void);
+// Vigia em segundo plano a conta BestCine (~60s): derruba se banido/revogado
+// e atualiza plano/nome em tempo real sem travar a interface ou o player.
+void        sessao_bc_vigiar(unsigned agoraMs);
 
 // TOKEN DE ACESSO CRU, para quem precisa se autenticar em um servidor que NAO
 // e o Supabase do Nuvio. Hoje so o servico de recomendacoes (recomenda.c), que

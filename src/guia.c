@@ -328,6 +328,12 @@ static int    *catIni, *catN;
 static GFonteLtv ltvF[G_MAX_LTV]; static int nLtvF;
 static LtvArena arena;
 static unsigned canaisRevisao;
+static int bcGradeAtiva(void);
+static const char *bcDescProgramacao(const GCanal *c);
+static void bcGradeAbrir(void);
+static void bcGradeAtualizar(float dt, Uint32 agora);
+static int bcGradeEvento(const SDL_Event *e);
+static void bcGradeDesenhar(float a, Uint32 agora);
 // Staging (so o fio de carga escreve).
 static GCanal *sCanais;  static int sNCanais, sCapCanais;
 static GCat   *sCats;    static int sNCats, sCapCats;
@@ -3013,6 +3019,7 @@ void guia_abrir(void) {
   previewUltLin = previewUltCol = -1; previewFocoMudou = SDL_GetTicks();
   focoValido();
   dicaTalvez();
+  bcGradeAbrir();
 }
 
 // O CANAL NO AR VEM PARA O GUIA. O app ja mandou o player encolher para o
@@ -3025,6 +3032,7 @@ void guia_adotar_canal(const char *id) {
   overlay = 0; aberta = 1;
   guia_focar_id(id);
   previewUltLin = focoLin; previewUltCol = focoCol;
+  bcGradeAbrir();
 }
 
 int guia_pediu_preview(CatItem *it) {
@@ -4123,6 +4131,7 @@ void guia_evento(const SDL_Event *e) {
   if (toquerol_navegacao(e)) toqueGuiaRetomar();
 #endif
   if (buscaEvento(e)) return;
+  if (bcGradeAtiva() && bcGradeEvento(e)) return;
 
   if (e->type == SDL_KEYUP) {
     SDL_Keycode k = e->key.keysym.sym;
@@ -4845,7 +4854,7 @@ void guia_atualizar(float dt, Uint32 agora) {
   // Com o preview LIGADO o descanso do foco troca o que toca, inclusive com
   // canal adotado no ar (conta limitada: o app fecha a sessao antes de abrir
   // a nova — uma conexao so). Preview desligado: o canal no ar fica.
-  if (aberta && !overlay && previewLigado && !player_aberto() &&
+  if (aberta && !overlay && !bcGradeAtiva() && previewLigado && !player_aberto() &&
       nCanais > 0 && (estado == G_PRONTO || estado == G_BAIXANDO) &&
       (focoLin != previewUltLin || focoCol != previewUltCol) &&
       agora - previewFocoMudou >= G_PREVIEW_ESPERA_MS) {
@@ -4855,6 +4864,7 @@ void guia_atualizar(float dt, Uint32 agora) {
   }
   if (!guia_visivel()) { buscaFechar(); return; }
   buscaAtualizar(dt, agora);
+  if (bcGradeAtiva()) { bcGradeAtualizar(dt, agora); return; }
 
   for (int i = 0; i < G_TOPO_N; i++)
     animTopo[i] = anim_mola(animTopo[i], focoTopo && topoCol == i ? 1.0f : 0.0f,
@@ -5234,10 +5244,11 @@ static void desenharCard(GCanal *c, float x, float y, float foco, float a,
       snprintf(linha, sizeof linha, "%s %s  \xc2\xb7  %s",
                i18n("A seguir"), h1, px.titulo);
     } else {
-      // -2 = canal sem grade real (os "24h"): nao e "carregando", e "nao tem".
+      const char *descBc = bcDescProgramacao(c);
       snprintf(linha, sizeof linha, "%s",
-               epg == -3 ? i18n("Não foi possível carregar a programação")
-               : epg == -2 ? i18n("Sem grade de programação")
+               descBc ? descBc
+               : epg == -3 ? i18n("Não foi possível carregar a programação")
+               : epg == -2 ? i18n("Ao vivo")
                : epg >= 0 ? i18n("Sem próximos programas")
                           : i18n("Carregando programação…"));
     }
@@ -5484,7 +5495,8 @@ static void desenharHero(float a, time_t agoraT, time_t tFoco) {
     } else if (epg == -1) {
       snprintf(meta, sizeof meta, "%s", i18n("Carregando programação…"));
     } else if (epg == -2) {
-      snprintf(meta, sizeof meta, "%s", i18n("Sem grade de programação"));
+      const char *descBc = bcDescProgramacao(c);
+      if (!descBc) snprintf(meta, sizeof meta, "%s", i18n("Ao vivo"));
     }
     if (meta[0]) {
       TxtLinha t = txt_linha_corta(TXT_DET_META, meta, 196, 198, 206, 255, x + w - mx);
@@ -6573,10 +6585,12 @@ static void desenharLinhaLista(GCanal *c, float y, int focada, float a,
         gfx_cor(b, raioB, l, l, l, a);
       }
     } else {
-      int ct = focada ? 176 : 118;
-      const char *m = epg == -1 ? i18n("Carregando programação…")
+      int ct = focada ? 196 : 138;
+      const char *descBc = bcDescProgramacao(c);
+      const char *m = descBc ? descBc
+                    : epg == -1 ? i18n("Carregando programação…")
                     : epg == -3 ? i18n("Não foi possível carregar a programação")
-               : epg == -2 ? i18n("Sem grade de programação")
+                    : epg == -2 ? i18n("Ao vivo")
                                 : i18n("Sem próximos programas");
       float tx = agoraX > b.x + 20.0f ? agoraX + 18.0f : b.x + 20.0f;
       TxtLinha t = txt_linha_corta(TXT_DET_META, m, ct, ct + 2, ct + 8, 255,
@@ -7441,6 +7455,8 @@ static void toqueGuiaRetomar(void) {
 }
 #endif
 
+#include "guia_bestcine.inc"
+
 void guia_desenhar(Uint32 agora) {
 #ifdef NV_TOUCH_UI
   if (!telefoneui_ativo()) toqueLimpar();
@@ -7451,6 +7467,7 @@ void guia_desenhar(Uint32 agora) {
   int l, i, temLinhas;
   if (a < 0.01f || !guia_visivel()) return;
   if (overlay) { desenharBanda(a, agora); return; }
+  if (bcGradeAtiva()) { bcGradeDesenhar(a, agora); return; }
   gTopoMedir();
   temLinhas = (estado == G_PRONTO || estado == G_BAIXANDO) && nLinhas() > 0;
 #ifdef NV_TOUCH_UI

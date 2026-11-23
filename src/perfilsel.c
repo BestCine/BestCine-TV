@@ -19,6 +19,7 @@
 #include "perfilcont.h"
 #include "psparede.h"
 #include "psestilos.h"
+#include "teclado.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -167,13 +168,26 @@ static int concluido, sair, repetir;
 // monta a home nova por tras. Ver perfilsel_preparar.
 static int preparando;
 static int pinDe = -1;
+static int criandoPerfil;
+static int focoRemover; // 0 = fileira de perfis, 1 = botao remover focado, 2 = confirmar exclusao
+
+static int bcPodeAdicionar(void) {
+  return sessao_bc_ativa() && perfis_n() > 0 && perfis_n() < 6;
+}
+static int totalSlots(void) {
+  return perfis_n() + (bcPodeAdicionar() ? 1 : 0);
+}
+static int bcPodeRemoverSlot(int slot) {
+  const ContaPerfil *p = perfis_item(slot);
+  return sessao_bc_ativa() && p && !p->primario && p->indice > 1;
+}
 #ifdef NV_TOUCH_UI
 static float psToqueX, psToqueMaximo, psToquePasso;
 static int psToqueLivre;
 static GfxRect psToqueRegiao;
 static int psToqueRolar(const PonteiroRolagem *e) {
   if (e->fase == PONT_ROL_INICIO) {
-    if (e->eixoY || preparando || pinDe >= 0 || psToqueMaximo <= 0.0f || e->x < psToqueRegiao.x || e->x >= psToqueRegiao.x + psToqueRegiao.w || e->y < psToqueRegiao.y || e->y >= psToqueRegiao.y + psToqueRegiao.h) return 0;
+    if (e->eixoY || preparando || criandoPerfil || pinDe >= 0 || psToqueMaximo <= 0.0f || e->x < psToqueRegiao.x || e->x >= psToqueRegiao.x + psToqueRegiao.w || e->y < psToqueRegiao.y || e->y >= psToqueRegiao.y + psToqueRegiao.h) return 0;
     psToqueLivre = 1; return 1;
   }
   if (e->fase == PONT_ROL_MOVER || e->fase == PONT_ROL_INERCIA) {
@@ -565,12 +579,12 @@ static int modoFundo(void) {
 
 static const char *muralUrls[PS_MURAL_MAX];
 static void montarCena(PSCena *c, int reduzida) {
-  int m = perfis_n(), i;
+  int m = perfis_n(), tot = totalSlots(), i;
   const ContaPerfil *p = m > 0 && foco >= 0 && foco < m ? perfis_item(foco) : NULL;
   memcpy(c->luz, muralLuz, sizeof c->luz);
-  { float d = diametro(m), vao = vaoDe(m, d), larg = (float)m * d + (float)(m - 1) * vao;
-    c->xFoco = m > 0 ? (NV_TELA_W - larg) * 0.5f + (float)foco * (d + vao) + d * 0.5f
-                     : NV_TELA_W * 0.5f; }
+  { float d = diametro(tot), vao = vaoDe(tot, d), larg = (float)tot * d + (float)(tot - 1) * vao;
+    c->xFoco = tot > 0 ? (NV_TELA_W - larg) * 0.5f + (float)foco * (d + vao) + d * 0.5f
+                       : NV_TELA_W * 0.5f; }
   c->perfil = p ? p->indice : 0;
   c->semParede = p ? p->temPin : 1;
   for (i = 0; i < muralN && i < PS_MURAL_MAX; i++) muralUrls[i] = muralCapas[i].url;
@@ -793,6 +807,7 @@ static void gifReset(void);
 
 void perfilsel_iniciar(void) {
   int i;
+  if (sessao_bc_ativa()) perfis_bc_garantir_padrao(sessao_bc_nome());
   gifReset();
 #ifdef NV_TOUCH_UI
   psToqueX = 0.0f; psToqueLivre = 0;
@@ -800,6 +815,8 @@ void perfilsel_iniciar(void) {
   concluido = sair = repetir = 0;
   preparando = 0;
   pinDe = -1;
+  criandoPerfil = 0;
+  focoRemover = 0;
   pin[0] = 0;
   pinFoco = PS_PIN_INICIO;
   pinErrado = 0;
@@ -853,8 +870,25 @@ static void *fioVerificar(void *u) {
   return NULL;
 }
 
+static void abrirNovoPerfil(void) {
+  focoRemover = 0;
+  criandoPerfil = 1;
+  teclado_contexto("BestCine TV \xc2\xb7 Perfis");
+  teclado_abrir_com("Novo perfil",
+                    "Digite o nome de quem vai assistir nesta TV.",
+                    24,
+                    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -'",
+                    "");
+  teclado_aceitar_utf8(1);
+}
+
 static void escolher(int i) {
-  const ContaPerfil *p = perfis_item(i);
+  const ContaPerfil *p;
+  if (i == perfis_n() && bcPodeAdicionar()) {
+    abrirNovoPerfil();
+    return;
+  }
+  p = perfis_item(i);
   switch (perfis_acao(i)) {
     case PERFIL_ACAO_PIN:
       pinDe = i; pin[0] = 0; pinFoco = PS_PIN_INICIO; pinErrado = pinRede = 0;
@@ -934,18 +968,59 @@ static void eventoPin(SDL_Keycode k) {
 
 static void perfilFocar(int slot, int indice) {
   const ContaPerfil *p = perfis_item(slot);
-  if (!preparando && pinDe < 0 && p && p->indice == indice) {
+  if (!preparando && !criandoPerfil && pinDe < 0 && p && p->indice == indice) {
 #ifdef NV_TOUCH_UI
     psToqueLivre = 0;
 #endif
     foco = slot;
+    focoRemover = 0;
   }
 }
 static void perfilAtivar(int slot, int indice) {
   const ContaPerfil *p = perfis_item(slot);
-  if (!preparando && pinDe < 0 && p && p->indice == indice) {
+  if (!preparando && !criandoPerfil && pinDe < 0 && p && p->indice == indice) {
     foco = slot;
+    focoRemover = 0;
     escolher(slot);
+  }
+}
+static void perfilAddFocar(int slot, int b) {
+  (void)b;
+  if (!preparando && !criandoPerfil && pinDe < 0 && bcPodeAdicionar() && slot == perfis_n()) {
+#ifdef NV_TOUCH_UI
+    psToqueLivre = 0;
+#endif
+    foco = slot;
+    focoRemover = 0;
+  }
+}
+static void perfilAddAtivar(int slot, int b) {
+  (void)b;
+  if (!preparando && !criandoPerfil && pinDe < 0 && bcPodeAdicionar() && slot == perfis_n()) {
+    foco = slot;
+    abrirNovoPerfil();
+  }
+}
+static void perfilRemoverFocar(int slot, int b) {
+  (void)b;
+  if (!preparando && !criandoPerfil && pinDe < 0 && bcPodeRemoverSlot(slot)) {
+    foco = slot;
+    if (focoRemover == 0) focoRemover = 1;
+  }
+}
+static void perfilRemoverAtivar(int slot, int b) {
+  (void)b;
+  if (!preparando && !criandoPerfil && pinDe < 0 && bcPodeRemoverSlot(slot)) {
+    if (foco == slot && focoRemover == 2) {
+      if (perfis_bc_remover(slot)) {
+        focoRemover = 0;
+        contN = -1;
+        if (foco >= perfis_n() && perfis_n() > 0) foco = perfis_n() - 1;
+      }
+    } else {
+      foco = slot;
+      focoRemover = 2;
+    }
   }
 }
 static void pinFocar(int tecla, int b) {
@@ -961,12 +1036,16 @@ static void perfisRetentar(int a, int b) {
 
 void perfilsel_evento(const SDL_Event *e) {
   SDL_Keycode k;
-  int m = perfis_n();
+  int m = perfis_n(), tot = totalSlots();
+  if (criandoPerfil && teclado_aberto()) {
+    teclado_evento(e);
+    return;
+  }
   if (e->type != SDL_KEYDOWN) return;
 #ifdef NV_TOUCH_UI
-  if (psToqueLivre && psToquePasso > 0.0f && m > 0) {
+  if (psToqueLivre && psToquePasso > 0.0f && tot > 0) {
     foco = (int)((psToqueX + (NV_TELA_W - 2.0f * NV_MARGEM_X) * 0.35f) / psToquePasso);
-    if (foco >= m) foco = m - 1;
+    if (foco >= tot) foco = tot - 1;
   }
   psToqueLivre = 0;
 #endif
@@ -976,14 +1055,40 @@ void perfilsel_evento(const SDL_Event *e) {
   k = e->key.keysym.sym;
   if (pinDe >= 0) { eventoPin(k); return; }
 
-  if (k == SDLK_ESCAPE || k == SDLK_AC_BACK || k == SDLK_BACKSPACE) { sair = 1; return; }
+  if (k == SDLK_ESCAPE || k == SDLK_AC_BACK || k == SDLK_BACKSPACE) {
+    if (focoRemover > 0) { focoRemover = 0; return; }
+    sair = 1;
+    return;
+  }
   // Com a lista na tela, o OK escolhe. Sem ela (rede caida), o OK e a unica
   // acao que faz sentido: tentar de novo.
   if (m == 0 && sync_estado() == SYNC_FALHOU &&
       (k == SDLK_RETURN || k == SDLK_KP_ENTER)) { repetir = 1; return; }
-  if (k == SDLK_RIGHT) { if (foco < m - 1) foco++; }
-  else if (k == SDLK_LEFT) { if (foco > 0) foco--; }
-  else if (k == SDLK_RETURN || k == SDLK_KP_ENTER) escolher(foco);
+  if (k == SDLK_DOWN) {
+    if (bcPodeRemoverSlot(foco)) focoRemover = 1;
+    return;
+  }
+  if (k == SDLK_UP) {
+    if (focoRemover > 0) focoRemover = 0;
+    return;
+  }
+  if (k == SDLK_RIGHT) {
+    if (foco < tot - 1) { foco++; focoRemover = 0; }
+  } else if (k == SDLK_LEFT) {
+    if (foco > 0) { foco--; focoRemover = 0; }
+  } else if (k == SDLK_RETURN || k == SDLK_KP_ENTER) {
+    if (focoRemover == 1 && bcPodeRemoverSlot(foco)) {
+      focoRemover = 2;
+    } else if (focoRemover == 2 && bcPodeRemoverSlot(foco)) {
+      if (perfis_bc_remover(foco)) {
+        focoRemover = 0;
+        contN = -1;
+        if (foco >= perfis_n() && perfis_n() > 0) foco = perfis_n() - 1;
+      }
+    } else {
+      escolher(foco);
+    }
+  }
 }
 
 void perfilsel_atualizar(float dt, Uint32 agora) {
@@ -1112,7 +1217,26 @@ void perfilsel_atualizar(float dt, Uint32 agora) {
     }
   }
   }
-  if (foco >= perfis_n()) foco = perfis_n() > 0 ? perfis_n() - 1 : 0;
+  if (criandoPerfil) {
+    if (teclado_aberto()) teclado_atualizar(dt, agora);
+    { int r = teclado_resultado();
+      if (r == TECLADO_PRONTO) {
+        int novoSlot = perfis_bc_criar(teclado_texto());
+        criandoPerfil = 0;
+        if (novoSlot >= 0) {
+          foco = novoSlot;
+          focoRemover = 0;
+          contN = -1;
+          for (i = 0; i < CONTA_PERFIL_MAX; i++) animFoco[i] = (i == foco) ? 1.0f : 0.0f;
+        }
+      } else if (r == TECLADO_CANCELOU || !teclado_aberto()) {
+        criandoPerfil = 0;
+      } }
+  }
+
+  { int tot = totalSlots();
+    if (foco >= tot) foco = tot > 0 ? tot - 1 : 0;
+    if (!bcPodeRemoverSlot(foco)) focoRemover = 0; }
 
   // NAO concluir enquanto o ciclo que BUSCA os perfis ainda esta rodando E a
   // lista ainda esta vazia.
@@ -1135,7 +1259,9 @@ void perfilsel_atualizar(float dt, Uint32 agora) {
   // perfis_precisa_escolher(): esta tela tambem e aberta DE PROPOSITO pelo
   // "trocar de perfil" do menu, e ali a bandeira de sessao ja esta ligada — a
   // tela se fecharia sozinha no quadro seguinte.
-  if (sync_estado() == SYNC_PRONTO && perfis_sem_escolha() && pinDe < 0) concluido = 1;
+  // No BestCine TV a tela tambem permite criar novos perfis locais (+ Novo perfil),
+  // entao nao se fecha sozinha quando aberta pela conta BestCine.
+  if (sync_estado() == SYNC_PRONTO && perfis_sem_escolha() && !sessao_bc_ativa() && pinDe < 0) concluido = 1;
 }
 
 void perfilsel_preparar(int ligado, Uint32 agora) {
@@ -1362,7 +1488,7 @@ static void desenhaPin(void) {
 }
 
 void perfilsel_desenhar(Uint32 agora) {
-  int i, m = perfis_n();
+  int i, m = perfis_n(), addSlot = bcPodeAdicionar(), tot = m + (addSlot ? 1 : 0);
   float d, vao, largura, x, subida, a;
   int reduzida = ajustes_animacoes_reduzidas();
 
@@ -1434,9 +1560,9 @@ void perfilsel_desenhar(Uint32 agora) {
                        PS_SUB_Y + subida + 3.0f, a * 0.78f);
     txt_desenhar_alpha(s, (NV_TELA_W - s.w) * 0.5f, PS_SUB_Y + subida, a); }
 
-  d = diametro(m);
-  vao = vaoDe(m, d);
-  largura = (float)m * d + (float)(m - 1) * vao;
+  d = diametro(tot);
+  vao = vaoDe(tot, d);
+  largura = (float)tot * d + (float)(tot - 1) * vao;
   x = (NV_TELA_W - largura) * 0.5f;
 #ifdef NV_TOUCH_UI
   psToqueMaximo = fmaxf(0.0f, largura - (NV_TELA_W - 2.0f * NV_MARGEM_X));
@@ -1450,7 +1576,7 @@ void perfilsel_desenhar(Uint32 agora) {
     }
     x = NV_MARGEM_X - psToqueX;
     psToqueRegiao = (GfxRect){NV_MARGEM_X, PS_FILA_Y - 40.0f, NV_TELA_W - 2.0f * NV_MARGEM_X, 560.0f};
-    if (!preparando && pinDe < 0) ponteiro_rolagem(psToqueRolar);
+    if (!preparando && !criandoPerfil && pinDe < 0) ponteiro_rolagem(psToqueRolar);
   }
 #endif
 
@@ -1470,14 +1596,14 @@ void perfilsel_desenhar(Uint32 agora) {
     // ANEL CONCENTRICO, e nao um contorno pintado por cima: um disco branco
     // atras, ligeiramente maior. E o padrao que a home ja usa no avatar social,
     // e e o unico que mantem a espessura uniforme em qualquer tamanho.
-    if (f > 0.02f) {
+    if (f > 0.02f && !(i == foco && focoRemover > 0)) {
       float e = NV_ANEL_FOCO * f;
       gfx_rect((GfxRect){ av.x - e, av.y - e, av.w + e * 2, av.h + e * 2 },
                0, GFX_DISCO, 0, 0, 0, 0, 0.97f, 0.97f, 0.99f, f * a);
     }
     // So anima o avatar em foco, e nao quando o teclado do PIN esta por cima:
     // gif.c segura uma animacao por vez e os dois discos disputariam a textura.
-    disco(av, p, f, a, i == foco && pinDe < 0);
+    disco(av, p, f, a, i == foco && pinDe < 0 && !criandoPerfil);
     if (preparando && i == foco) giro(av, agora, a, reduzida);
 
     // 176 e nao 140 no estado sem foco: a nota de contraste vale a 3 m, e
@@ -1485,7 +1611,7 @@ void perfilsel_desenhar(Uint32 agora) {
     c = 176 + (int)(79.0f * f);
     nome = txt_linha_corta(d >= 230.0f ? TXT_TITULO3 : TXT_HEADLINE, p->nome,
                            c, c, c + 6 > 255 ? 255 : c + 6, 255, d + vao * 0.9f);
-    if (!preparando && pinDe < 0)
+    if (!preparando && !criandoPerfil && pinDe < 0)
       ponteiro_alvo(av.x, av.y, av.w,
                     av.h + PS_NOME_GAP + (float)nome.h + PS_CONT_NOME_GAP + contAltura(),
                     perfilFocar, perfilAtivar, i, p->indice);
@@ -1518,6 +1644,67 @@ void perfilsel_desenhar(Uint32 agora) {
                  - NV_FOCO_LIFT * f * 0.5f;
       contDesenhar(i, px + d * 0.5f, cy, f, a, d + vao, !p->temPin);
     }
+    if (!preparando && !criandoPerfil && pinDe < 0 && i == foco && bcPodeRemoverSlot(i)) {
+      const char *rot = focoRemover == 2 ? "Confirmar exclusão?" : "Remover perfil";
+      int rmFoco = focoRemover > 0;
+      TxtLinha rl = txt_linha(TXT_CAPTION, rot,
+                              rmFoco ? 255 : 186, rmFoco ? 255 : 190, rmFoco ? 255 : 200, 255);
+      float ry = y + d + PS_NOME_GAP + (float)nome.h
+                 + (contQuer ? PS_CONT_NOME_GAP + contAltura() + 18.0f : 26.0f)
+                 - NV_FOCO_LIFT * f * 0.5f;
+      GfxRect pil = { px + (d - ((float)rl.w + 36.0f)) * 0.5f, ry,
+                      (float)rl.w + 36.0f, (float)rl.h + 16.0f };
+      if (focoRemover == 2) {
+        gfx_cor(pil, NV_RAIO_PILL, 0.80f, 0.16f, 0.22f, 0.94f * a);
+        gfx_anel_fora(pil, NV_RAIO_PILL, 0.0f, NV_ANEL_FOCO, 1.0f, 0.96f, 0.96f, a);
+      } else if (focoRemover == 1) {
+        gfx_cor(pil, NV_RAIO_PILL, 0.60f, 0.14f, 0.18f, 0.88f * a);
+        gfx_anel_fora(pil, NV_RAIO_PILL, 0.0f, NV_ANEL_FOCO, 0.97f, 0.97f, 0.99f, a);
+      } else {
+        gfx_cor(pil, NV_RAIO_PILL, 1.0f, 1.0f, 1.0f, 0.09f * a);
+      }
+      txt_desenhar_alpha(rl, pil.x + 18.0f, pil.y + 8.0f, a);
+      ponteiro_alvo(pil.x, pil.y, pil.w, pil.h,
+                    perfilRemoverFocar, perfilRemoverAtivar, i, 0);
+    }
+  }
+
+  // Botao "+ Novo perfil" para familias que compartilham a mesma conta BestCine na TV.
+  if (addSlot) {
+    float f = animFoco[m];
+    float px = x + (float)m * (d + vao);
+    float cresce = d * NV_FOCO_ESCALA_P * f;
+    float y = PS_FILA_Y + subida;
+    GfxRect av = { px - cresce * 0.5f, y - cresce * 0.5f - NV_FOCO_LIFT * f,
+                   d + cresce, d + cresce };
+    float esp = av.w * 0.038f;
+    float comp = av.w * 0.34f;
+    int c = 176 + (int)(79.0f * f);
+    TxtLinha nome = txt_linha_corta(d >= 230.0f ? TXT_TITULO3 : TXT_HEADLINE, "Novo perfil",
+                                    c, c, c + 6 > 255 ? 255 : c + 6, 255, d + vao * 0.9f);
+    TxtLinha sombra = txt_linha_corta(d >= 230.0f ? TXT_TITULO3 : TXT_HEADLINE, "Novo perfil",
+                                      0, 0, 0, 220, d + vao * 0.9f);
+    if (esp < 6.0f) esp = 6.0f;
+    if (f > 0.02f) {
+      float e = NV_ANEL_FOCO * f;
+      gfx_rect((GfxRect){ av.x - e, av.y - e, av.w + e * 2, av.h + e * 2 },
+               0, GFX_DISCO, 0, 0, 0, 0, 0.97f, 0.97f, 0.99f, f * a);
+    }
+    gfx_rect(av, 0, GFX_DISCO, 0, 0, 0, 0,
+             0.11f + 0.08f * f, 0.14f + 0.12f * f, 0.22f + 0.18f * f,
+             (0.84f + 0.14f * f) * a);
+    gfx_cor((GfxRect){ av.x + (av.w - comp) * 0.5f, av.y + (av.h - esp) * 0.5f, comp, esp },
+            0.5f, 1.0f, 1.0f, 1.0f, (0.72f + 0.28f * f) * a);
+    gfx_cor((GfxRect){ av.x + (av.w - esp) * 0.5f, av.y + (av.h - comp) * 0.5f, esp, comp },
+            0.5f, 1.0f, 1.0f, 1.0f, (0.72f + 0.28f * f) * a);
+    if (!preparando && !criandoPerfil && pinDe < 0)
+      ponteiro_alvo(av.x, av.y, av.w, av.h + PS_NOME_GAP + (float)nome.h + 24.0f,
+                    perfilAddFocar, perfilAddAtivar, m, 0);
+    txt_desenhar_alpha(sombra, px + (d - sombra.w) * 0.5f + 2.0f,
+                       y + d + PS_NOME_GAP + 3.0f - NV_FOCO_LIFT * f * 0.5f,
+                       a * 0.90f);
+    txt_desenhar_alpha(nome, px + (d - nome.w) * 0.5f,
+                       y + d + PS_NOME_GAP - NV_FOCO_LIFT * f * 0.5f, a);
   }
 
   // SEM ILHA DE DICAS NO RODAPE (dono, 05/10). So o "Preparando o perfil…"
@@ -1531,6 +1718,7 @@ void perfilsel_desenhar(Uint32 agora) {
   }
 
   if (animPin > 0.004f) desenhaPin();
+  if (criandoPerfil && teclado_aberto()) teclado_desenhar(agora);
 }
 
 #ifdef NV_PERFILSEL_TEST

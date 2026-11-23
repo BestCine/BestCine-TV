@@ -944,19 +944,73 @@ int sessao_bc_atualizar_status(void) {
   }
   if (st == 401 || strstr(resp, "\"token_invalido\":true")) {
     free(resp);
-    sessao_sair();
+    codigo[0] = 0;
     snprintf(erro, sizeof erro, "Sessão expirada ou token redefinido. Escaneie o QR Code novamente.");
+    estado = SES_ERRO;
+    pthread_mutex_lock(&tokTrava);
+    limpar();
+    dados_apagar(ARQ_SESSAO);
+    pthread_mutex_unlock(&tokTrava);
+    printf("[sessao] sessao BestCine encerrada (token invalido/revogado)\n");
     return -1;
   }
   banMsg[0] = 0;
   ok = aplicarUsuarioBestCine(resp, banMsg, sizeof banMsg);
   free(resp);
   if (ok < 0) {
-    sessao_sair();
+    codigo[0] = 0;
     snprintf(erro, sizeof erro, "%s", banMsg[0] ? banMsg : "Sua conta BestCine está suspensa.");
+    estado = SES_ERRO;
+    pthread_mutex_lock(&tokTrava);
+    limpar();
+    dados_apagar(ARQ_SESSAO);
+    pthread_mutex_unlock(&tokTrava);
+    printf("[sessao] sessao BestCine encerrada (conta suspensa/banida)\n");
     return -1;
   }
   return ok == 1 ? 1 : 0;
+}
+
+#define BC_VIGIA_INTERVALO_MS 60000u
+static pthread_mutex_t bcVigiaTrava = PTHREAD_MUTEX_INITIALIZER;
+static int bcVigiaVivo;
+static unsigned bcVigiaUltimoMs;
+
+static void *fioBcVigiar(void *u) {
+  (void)u;
+  sessao_bc_atualizar_status();
+  pthread_mutex_lock(&bcVigiaTrava);
+  bcVigiaVivo = 0;
+  pthread_mutex_unlock(&bcVigiaTrava);
+  return NULL;
+}
+
+void sessao_bc_vigiar(unsigned agoraMs) {
+  pthread_t t;
+  if (!sessao_bc_ativa()) {
+    bcVigiaUltimoMs = 0;
+    return;
+  }
+  if (!bcVigiaUltimoMs) {
+    bcVigiaUltimoMs = agoraMs ? agoraMs : 1u;
+    return;
+  }
+  if ((unsigned)(agoraMs - bcVigiaUltimoMs) < BC_VIGIA_INTERVALO_MS) return;
+  pthread_mutex_lock(&bcVigiaTrava);
+  if (bcVigiaVivo) {
+    pthread_mutex_unlock(&bcVigiaTrava);
+    return;
+  }
+  bcVigiaVivo = 1;
+  bcVigiaUltimoMs = agoraMs ? agoraMs : 1u;
+  pthread_mutex_unlock(&bcVigiaTrava);
+  if (pthread_create(&t, NULL, fioBcVigiar, NULL) == 0) {
+    pthread_detach(t);
+  } else {
+    pthread_mutex_lock(&bcVigiaTrava);
+    bcVigiaVivo = 0;
+    pthread_mutex_unlock(&bcVigiaTrava);
+  }
 }
 // "" para sessao anonima de proposito — ver a nota em sessao.h.
 // Quem chama e um fio de trabalho (recomenda, avisos, atividade) e pode estar

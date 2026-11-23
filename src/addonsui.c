@@ -58,19 +58,8 @@ int addonsui_quer_sair(void) {
 
 int addonsui_pediu_relogio(void) { int v = pediuRelogio; pediuRelogio = 0; return v; }
 
-// SINCRONIZAR ADDONS (#360): a linha apos os addons (foco == n). Pede a volta
-// da conta ja, pelo mesmo ciclo de sempre (sync.c, fora do fio do quadro); o
-// resultado vira aviso da ilha (ilhasinais.c). Sem conta nao ha o que puxar: a
-// linha explica em vez de sumir.
-static void sincronizar(void) {
-  if (!sessao_logada()) {
-    ilha_avisar("sync-addons", ILHA_INFO, "aj_rotate-cw",
-                i18n("Entre na conta Nuvio para sincronizar os addons."), 4000u, 0);
-    return;
-  }
-  if (sync_manual_addons_rodando()) return;   // ja no ar: o botao nao empilha
-  sync_manual_addons();
-}
+// BestCine TV: a atualizacao da conta/catalogos fica em Ajustes > Conta BestCine
+// (sem botao legado "Sincronizar addons" do Supabase nesta tela).
 
 int addonsui_ao_vivo(void) { return aoVivo; }
 int addonsui_addon_ao_vivo(int i) {
@@ -90,7 +79,7 @@ static void alternarAoVivo(int i) {
 }
 void addonsui_evento(const SDL_Event *e) {
   int n = addons_n();
-  int ultimo = aoVivo ? (n > 0 ? n - 1 : 0) : n + 1;
+  int ultimo = aoVivo ? (n > 0 ? n - 1 : 0) : n;
   if (foco > ultimo) foco = ultimo;
   pediuRelogio = 0;
   if (e->type != SDL_KEYDOWN) return;
@@ -99,12 +88,11 @@ void addonsui_evento(const SDL_Event *e) {
     case SDLK_DOWN:   if (foco < ultimo) foco++; break;
     case SDLK_RETURN: case SDLK_KP_ENTER:
       if (aoVivo) { if (foco < n) alternarAoVivo(foco); break; }
-      if (foco == n) { sincronizar(); break; }
-      if (foco == n + 1) { aoVivo = 1; foco = 0; scrollY = 0; break; }
+      if (foco == n) { aoVivo = 1; foco = 0; scrollY = 0; break; }
       if (n > 0) { addons_alternar(foco); mexeu = 1; }
       break;
     case SDLK_AC_BACK: case SDLK_ESCAPE: case SDLK_BACKSPACE: case SDLK_LEFT:
-      if (aoVivo) { aoVivo = 0; foco = n + 1; scrollY = 0; }
+      if (aoVivo) { aoVivo = 0; foco = n; scrollY = 0; }
       else sair = 1;
       break;
     default: break;
@@ -115,7 +103,7 @@ void addonsui_evento(const SDL_Event *e) {
 // setas). O desenho mora em ajustes_ux_ilha.inc (ajSubLista).
 void addonsui_ponteiro(int i, int b) {
   (void)b;
-  int n = addons_n(), ultimo = aoVivo ? n - 1 : n + 1;
+  int n = addons_n(), ultimo = aoVivo ? n - 1 : n;
   if (sair || i < 0 || i > ultimo || i == foco) return;
   foco = i;
 }

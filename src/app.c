@@ -4957,6 +4957,10 @@ void app_atualizar(float dt, Uint32 agora) {
     return;
   }
 
+  // Vigia leve em segundo plano da conta BestCine (~60s): se a conta for
+  // banida/suspensa ou tiver o token revogado, desconecta imediatamente abaixo.
+  sessao_bc_vigiar((unsigned)agora);
+
   // Sessao perdida no meio do uso (renovacao recusada): voltar ao login e a
   // unica saida honesta. Continuar na home mostraria o catalogo de exemplo do
   // pacote como se fosse o da pessoa.

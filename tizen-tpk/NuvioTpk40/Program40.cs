@@ -905,7 +905,7 @@ namespace NuvioTpk
             Linha(janelaErro, coluna, titulo, 36);
             foreach (var d in detalhes) Linha(janelaErro, coluna, d, 26);
             Linha(janelaErro, coluna, $"TV {modelo ?? "?"} / Tizen {versao ?? "?"} / {RuntimeInformation.FrameworkDescription}", 26);
-            Linha(janelaErro, coluna, "Mande uma FOTO desta tela na issue #137 do GitHub (iqui27/nuvio-native-legacy). Voltar sai.", 26);
+            Linha(janelaErro, coluna, "Confira a versao do Tizen da sua TV em github.com/BestCine/BestCine-TV. Voltar sai.", 26);
             janelaErro.Show();
         }
 
