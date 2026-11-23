@@ -169,7 +169,7 @@ static inline int idiomaauto_resolver(const char *tmdb, const char *legenda,
   if ((r = idiomaauto_mapear(tmdb)) >= 0)         f = IDA_TMDB;
   else if ((r = idiomaauto_mapear(legenda)) >= 0) f = IDA_LEGENDA;
   else if ((r = idiomaauto_mapear(sistema)) >= 0) f = IDA_SISTEMA;
-  else { r = IDIOMA_EN; f = IDA_PADRAO; }
+  else { r = IDIOMA_PT; f = IDA_PADRAO; }
   if (fonte) *fonte = f;
   return r;
 }

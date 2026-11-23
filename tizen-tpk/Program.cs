@@ -216,7 +216,7 @@ namespace NuvioTpk
             catch (Exception e)
             {
                 Etapa("note launch threw " + e.GetType().Name + ": " + e.Message);
-                Erro("Nuvio could not start.", e.GetType().Name + ": " + e.Message);
+                Erro("BestCine TV não pôde iniciar.", e.GetType().Name + ": " + e.Message);
             }
         }
 
@@ -300,7 +300,7 @@ namespace NuvioTpk
             catch (Exception e)
             {
                 Etapa("fail video-init " + e.GetType().Name + ": " + e.Message);
-                Erro("Nuvio could not start the player.", e.GetType().Name + ": " + e.Message);
+                Erro("BestCine TV não pôde iniciar o player.", e.GetType().Name + ": " + e.Message);
                 return;
             }
             Etapa("ok video-init");
@@ -345,7 +345,7 @@ namespace NuvioTpk
             {
                 try { File.WriteAllText(IOPath.Combine(dados, "tpk-erro.txt"), e.ToString()); } catch { }
                 Etapa("fail nv_tpk_iniciar " + e.GetType().Name + ": " + e.Message);
-                Erro("Nuvio could not start.", e.GetType().Name + ": " + e.Message);
+                Erro("BestCine TV não pôde iniciar.", e.GetType().Name + ": " + e.Message);
                 return;
             }
             Etapa("ok nv_tpk_iniciar");
@@ -367,7 +367,7 @@ namespace NuvioTpk
             catch (Exception e)
             {
                 Etapa("fail gl-window " + e.GetType().Name + ": " + e.Message);
-                Erro("Nuvio could not open its window.", e.GetType().Name + ": " + e.Message);
+                Erro("BestCine TV não pôde abrir a janela.", e.GetType().Name + ": " + e.Message);
                 return;
             }
             Etapa("ok gl-window");
@@ -803,7 +803,7 @@ namespace NuvioTpk
                 {
                     Text = titulo + "\n\n" + detalhe + "\n\nTV " + Tv() + " / host " + Host + " / " + RuntimeInformation.FrameworkDescription +
                            (etapaAnterior != null ? "\nPrevious launch stopped at: " + etapaAnterior : "") +
-                           "\n\nPlease post a PHOTO of this screen in issue #137 on GitHub (iqui27/nuvio-native-legacy). Back closes.",
+                           "\n\nConfira se baixou o .tpk compativel com o Tizen da sua TV em github.com/BestCine/BestCine-TV. Voltar fecha.",
                     MultiLine = true, TextColor = NuiColor.White, PointSize = 20,
                     Size2D = new Size2D(W - 160, H - 160), Position2D = new Position2D(80, 80),
                 };

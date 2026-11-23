@@ -3001,7 +3001,7 @@ int ajustes_fonte_repor(void) {
 // de antes desta chave (ou de alguem que escolheu): nao ha como distinguir, e
 // mudar a lingua de quem ja estava lendo em uma seria a pior surpresa possivel,
 // entao conta como MANUAL. So nasce automatico quem nunca gravou um "idioma".
-static int idiomaEfetivo = IDIOMA_EN;   // o resolvido; so vale com valor[AJ_IDIOMA] == 0
+static int idiomaEfetivo = IDIOMA_PT;   // o resolvido; so vale com valor[AJ_IDIOMA] == 0
 static int idiomaPosArranque;           // 1 depois de ajustes_idioma_auto_iniciar
 static int idiomaUltimaFonte = -1;      // a ultima decisao logada (nao repetir a linha)
 static int idiomaFonteGravada = IDA_PADRAO;  // idiomaFonteLocal: de onde veio o gravado
@@ -4823,7 +4823,7 @@ void ajustes_dir(const char *dir) {
     ajSombraSync();
     return;
   }
-  { int viuIdioma = 0, viuAuto = 0, idiomaGravado = IDIOMA_EN, autoGravado = 0;
+  { int viuIdioma = 0, viuAuto = 0, idiomaGravado = IDIOMA_PT, autoGravado = 0;
     int medidorAntigo = -1, viuMedidor = 0, resAntiga = -1, viuRes = 0, prazoAntigo = -1, viuEspera = 0;
     int focoAntigo = -1, viuFoco = 0;
     int sinopseAntiga = -1, sinopseQuatro = -1, viuSinopse = 0;
@@ -5620,7 +5620,7 @@ static void idiomaEscolhido(void) {
   // ser calculado de novo.
   idiomaEfetivo = -1;
   idiomaResolver(0);
-  if (idiomaEfetivo < 0) idiomaEfetivo = IDIOMA_EN;   // a TV ainda nao respondeu (webOS)
+  if (idiomaEfetivo < 0) idiomaEfetivo = IDIOMA_PT;   // a TV ainda nao respondeu (webOS)
 }
 
 // O LOCALE DA TV.
