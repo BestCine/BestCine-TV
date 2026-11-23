@@ -17,8 +17,20 @@ on:
         description: "Publicar automaticamente na aba Releases"
         type: boolean
         default: true
+      incluir_webos:
+        description: "Compilar LG webOS (.ipk + repo.json)"
+        type: boolean
+        default: true
       incluir_tpk:
         description: "Compilar Samsung Tizen .tpk (mais demorado na primeira vez)"
+        type: boolean
+        default: true
+      incluir_wgt:
+        description: "Compilar Samsung Tizen WASM (.wgt)"
+        type: boolean
+        default: true
+      incluir_android:
+        description: "Compilar Android TV / Fire TV (.apk)"
         type: boolean
         default: true
 
@@ -31,6 +43,7 @@ jobs:
   # ---------------------------------------------------------------------------
   webos:
     name: LG webOS (.ipk + repo.json)
+    if: ${{ github.event.inputs.incluir_webos != 'false' }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
     env:
@@ -186,6 +199,7 @@ jobs:
   # ---------------------------------------------------------------------------
   tizen-wgt:
     name: Samsung Tizen WASM (.wgt)
+    if: ${{ github.event.inputs.incluir_wgt != 'false' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -220,7 +234,7 @@ jobs:
           bash tools/tizen.sh 2>&1 | tee build-wgt.log
           bash tools/tizen-wgt.sh 2>&1 | tee -a build-wgt.log
           mkdir -p dist-wgt
-          cp build/*.wgt dist-wgt/
+          cp ./*.wgt dist-wgt/ 2>/dev/null || cp build/*.wgt dist-wgt/
           ls -lh dist-wgt
 
       - name: Resumo em caso de erro
@@ -243,6 +257,7 @@ jobs:
   # ---------------------------------------------------------------------------
   android-tv:
     name: Android TV / Google TV (.apk)
+    if: ${{ github.event.inputs.incluir_android != 'false' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
