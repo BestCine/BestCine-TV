@@ -1337,9 +1337,16 @@ static void *rodar(void *u) {
       snprintf(addonsRem[0].url, sizeof addonsRem[0].url, "%s", manifestUrl);
       snprintf(addonsRem[0].nome, sizeof addonsRem[0].nome, "BestCine");
       addonsRem[0].ativo = 1;
-      nAddonsRem = 1;
-      nAddonsTogglesRem = 1;
+      // Addon oficial publico de legendas do Stremio (OpenSubtitles v3):
+      // somente recurso "subtitles", zero catalogo/stream de terceiros e zero peso no backend BestCine.
+      memset(&addonsRem[1], 0, sizeof addonsRem[1]);
+      snprintf(addonsRem[1].url, sizeof addonsRem[1].url, "https://opensubtitles-v3.strem.io/manifest.json");
+      snprintf(addonsRem[1].nome, sizeof addonsRem[1].nome, "OpenSubtitles v3");
+      addonsRem[1].ativo = 1;
+      nAddonsRem = 2;
+      nAddonsTogglesRem = 2;
       addonsTogglesRem[0] = addonsRem[0];
+      addonsTogglesRem[1] = addonsRem[1];
       temAddonsRem = 1;
       addonsCiclo = 1;
       PRONTO_PUBLICAR(addonsCedo, 1);
