@@ -2,139 +2,92 @@
   <img src="deploy/app/icon-large.png" alt="BestCine TV" width="120">
 </p>
 
-<h1 align="center">BestCine TV</h1>
+<h1 align="center">📺 BestCine TV (v1.1.4) — Smart TVs, TV Box, Mi Box &amp; Fire TV</h1>
 
 <p align="center">
-  <strong>Aplicativo nativo em C / SDL2 / OpenGL ES 2 para Smart TVs</strong><br>
-  LG webOS 3+ &nbsp;·&nbsp; Samsung Tizen 4.0–9 &nbsp;·&nbsp; Android TV / Google TV 7+
+  <strong>Versão feita especialmente para CONTROLE REMOTO (60 FPS nativo)</strong><br>
+  LG webOS &nbsp;·&nbsp; Samsung Tizen &nbsp;·&nbsp; Android TV / Google TV / Mi Box / Fire TV Stick / TV Box
 </p>
 
 <p align="center">
-  <a href="https://github.com/BestCine/BestCine-TV/releases/latest"><strong>Baixar última versão</strong></a>
-  &nbsp;·&nbsp; <a href="#instalação">Guia de instalação</a>
-  &nbsp;·&nbsp; <a href="#recursos-do-bestcine-tv">Recursos</a>
-  &nbsp;·&nbsp; <a href="https://github.com/BestCine/BestCine">App PC &amp; Celular</a>
-  &nbsp;·&nbsp; <a href="#créditos-e-licença">Créditos (GPL-3.0)</a>
+  <a href="https://github.com/BestCine/BestCine-TV/releases/latest">
+    <img src="https://img.shields.io/badge/Vers%C3%A3o_Atual-v1.1.4-1E6BFF?style=for-the-badge" alt="Versão Atual" />
+  </a>
+  <a href="https://github.com/BestCine/BestCine">
+    <img src="https://img.shields.io/badge/Windows_PC_%26_Celular-BestCine-0078D6?style=for-the-badge" alt="App PC e Celular" />
+  </a>
+  <a href="https://dsc.gg/bestcine">
+    <img src="https://img.shields.io/badge/Discord-Comunidade_Oficial-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord BestCine" />
+  </a>
 </p>
 
 ---
 
-O **BestCine TV** é o cliente nativo para Smart TVs do ecossistema **BestCine**, baseado no excelente projeto open-source [**nuvio-native-legacy**](https://github.com/iqui27/nuvio-native-legacy) criado por [**iqui27**](https://github.com/iqui27).
+## 🎯 QUAL É O SEU APARELHO? (CLIQUE E BAIXE DIRETO — NÃO PRECISA ABRIR "ASSETS")
 
-Escrito em **C nativo sobre SDL2 e OpenGL ES 2**, ele conversa diretamente com o pipeline de vídeo da TV, entregando navegação fluida a **60 FPS** mesmo em TVs antigas (como LG webOS 3/4 e Samsung Tizen 4.0 de 2018) sem o peso de um navegador web por baixo.
+> ⚠️ **NÃO SABE QUAL BAIXAR? SÓ ENCONTRE SEU APARELHO NA LISTA ABAIXO E CLIQUE NO LINK AZUL!**
 
-> **Procurando a versão para Windows PC ou Android Celular?**
-> Acesse o repositório complementar: **[BestCine/BestCine](https://github.com/BestCine/BestCine)**.
+### 1️⃣ Android TV / Google TV / Mi Box / Fire TV Stick / TV Box (TCL, Philips, Sony, Philco, Xiaomi, Chromecast…)
+Se o seu aparelho usa **Android TV, Google TV ou Fire TV**, **CLIQUE NO LINK ABAIXO** (funciona em 99% das TVs e Boxes — inclusive **TCL C6K**, **Mi Box**, **Mi TV Stick** e **Fire TV Stick**):
 
----
+👉 **[⬇️ BAIXAR BESTCINE TV PARA ANDROID TV / GOOGLE TV / MI BOX / FIRE TV (.apk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.4/BestCineTV-1.1.4-android-lite-armv7.apk)**
 
-## Plataformas suportadas
-
-| Plataforma | Modelos / Versões | Formato do pacote | Status |
-|---|---|---|---|
-| **LG webOS** | webOS 3.x, 4.x, 5.x, 6.x, 22, 23, 24+ | `.ipk` (Homebrew Channel) | Nativo (C / SDL2 / GLES2) |
-| **Samsung Tizen (2018–2020)** | Tizen 4.0 – 5.5 (`NU / RU / TU`) | `BestCineTV-1.0.1-NuvioTpk40.tpk` | Nativo (C / OpenGL ES) |
-| **Samsung Tizen (2021)** | Tizen 6.0 (`AU / Q60A / Q70A / Q80A`) | `BestCineTV-1.0.1-NuvioTpk60.tpk` | Nativo (C / OpenGL ES) |
-| **Samsung Tizen (2022–2023)** | Tizen 6.5 – 7.0 (`BU / CU / Q60B / Q60C`) | `BestCineTV-1.0.1-NuvioTpk65.tpk` | Nativo (C / OpenGL ES) |
-| **Samsung Tizen (2024+)** | Tizen 8.0 – 9.0 (`DU / Q60D / S90D+`) | `BestCineTV-1.0.1-NuvioTpk.tpk` | Nativo (C / OpenGL ES) |
-| **Samsung Tizen (WebAssembly)** | Tizen 5.5+ (alternativo) | `BestCineTV-1.0.1-tizen.wgt` | Alternativo (AVPlay) |
-| **Android TV / Google TV / Fire TV / TV Box** | Android 7.0+ (`armv7` / `arm64`) | `BestCineTV-1.0.1-android-lite-*.apk` | Nativo (C / SDL2 / MediaCodec) |
+- **Como instalar:** baixe pelo app **Downloader** (colando o link acima), **Send Files to TV** ou pendrive USB e abra o arquivo.
+- **Como entrar na sua conta:** abra o BestCine TV, aponte a câmera do celular para o **QR Code** na TV e toque em **Autorizar TV** (não precisa digitar senha no controle!).
+- *Opcional (apenas para aparelhos Android TV 64-bit como Nvidia Shield / Chromecast 4K / Fire TV 4K Max 2ª ger.):* [baixar versão arm64](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.4/BestCineTV-1.1.4-android-lite-arm64.apk) *(na dúvida, use o link principal acima — ele funciona em todos!)*.
 
 ---
 
-## Recursos do BestCine TV
+### 2️⃣ TV Samsung (Sistema Tizen — instalar via Apps2Samsung)
+> ⚠️ **ATENÇÃO: NÃO olhe o ano em que você comprou a TV!**
+> Olhe a **etiqueta atrás da TV** (ou em *Configurações › Suporte › Sobre esta TV*) e veja as **LETRAS DO MODELO** (ex.: `UN55AU8000` → letras **`AU`**):
 
-### Conta BestCine & Login por QR Code
-- **Login rápido por QR Code** direto na tela da TV (sem digitar e-mail ou senha no controle remoto): basta escanear o QR Code com o celular ou acessar `https://example.invalid/tv` e digitar o código de 6 dígitos exibido na tela.
-- **Configuração 100% automática**: ao aprovar no celular, sua conta, seu plano e todos os catálogos (filmes, séries e canais ao vivo) do BestCine são sincronizados automaticamente.
-- **Seção Conta BestCine nos Ajustes**: exibe usuário, e-mail, plano atual/validade, botão de atualização imediata dos catálogos e saída segura da conta.
-- **Sincronização opcional com Trakt e Simkl** por perfil (histórico, *Continuar assistindo* e lista de salvos entre dispositivos).
+| Letras do modelo da sua Samsung | Versão do Tizen | Clique para baixar |
+|---|---|---|
+| **`NU` / `RU` / `TU`** *(ex.: NU7100, RU7100, TU7000, TU8000)* | Tizen 4.0 – 5.5 | 👉 **[⬇️ Baixar para NU / RU / TU (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.4/BestCineTV-1.1.4-NuvioTpk40.tpk)** |
+| **`AU` / `Q60A` / `Q70A` / `Q80A`** *(ex.: AU7700, AU8000)* | Tizen 6.0 | 👉 **[⬇️ Baixar para AU / linha A (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.4/BestCineTV-1.1.4-NuvioTpk60.tpk)** |
+| **`BU` / `CU` / `Q60B` / `Q60C`** *(ex.: BU8000, CU7700, CU8000)* | Tizen 6.5 – 7.0 | 👉 **[⬇️ Baixar para BU / CU (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.4/BestCineTV-1.1.4-NuvioTpk65.tpk)** |
+| **`DU` / `Q60D` / `S90D+`** *(ex.: DU7700, DU8000, modelos 2024+)* | Tizen 8.0 – 9.0 | 👉 **[⬇️ Baixar para DU / 2024+ (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.4/BestCineTV-1.1.4-NuvioTpk.tpk)** |
+| *Alternativa WebAssembly (se o `.tpk` acima der erro)* | Tizen 5.5+ | 👉 **[⬇️ Baixar versão .wgt](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.4/BestCineTV-1.1.4-tizen.wgt)** |
 
-### DNS Próprio Anti-Bloqueio (DoH)
-- Em **Ajustes › Conta e serviços › DNS Anti-Bloqueio (DoH)**, o app resolve domínios diretamente via DNS criptografado:
-  - **Cloudflare DoH (`1.1.1.1`)** — ativado por padrão contra bloqueios de operadoras.
-  - **Google DoH (`8.8.8.8`)** — alternativa criptografada.
-  - **DNS do sistema** — usa o DNS configurado no roteador/TV.
-- Compatível tanto com **libcurl moderno (7.62+)** quanto com **TVs antigas (LG webOS 3/4/5 com libcurl 7.53.1)** através de resolução DoH JSON em cache + `CURLOPT_RESOLVE`.
-
-### Reprodução & Interface
-- **60 FPS nativo** com suporte a **HDR10**, **Dolby Vision** (MP4 / webOS), **Dolby Atmos** passthrough e conversão de **DTS/TrueHD para AC3 5.1 / AAC** em TVs LG e Samsung.
-- **TV ao Vivo integrada** com guia de programação (EPG), categorias, troca rápida de canais e proxy local de TS/HLS.
-- **Perfis com PIN**, controle infantil, busca unificada, trailers automáticos, suporte a controle Magic Remote (LG) e D-Pad completo.
-- **Legendas avançadas** com renderização ASS/SSA via `libass`, legenda dupla, sincronia automática e personalização completa de fonte/cor/tamanho.
+- **Como instalar:** envie o arquivo `.tpk` escolhido para a TV usando o **[Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung)** (ele assina automaticamente para a sua TV).
+- Se der erro `TypeLoadException` ao abrir, significa apenas que você baixou o `.tpk` de outra letra — basta instalar o da linha certa do `tizen=X.X` que aparece na tela.
 
 ---
 
-## Instalação
-
-### LG webOS (Recomendado: Homebrew Channel)
-
-A forma mais fácil é instalar pelo **Homebrew Channel** (com atualizações automáticas direto na TV):
-
-1. Abra o **Homebrew Channel** na sua TV LG.
-2. Vá em **Settings › Repositories** e adicione a URL abaixo:
-   ```
-   https://github.com/BestCine/BestCine-TV/releases/latest/download/repo.json
-   ```
-3. Procure por **BestCine TV** na lista e clique em **Install**.
-
-Também é possível baixar o arquivo `.ipk` diretamente na página de [Releases](https://github.com/BestCine/BestCine-TV/releases/latest):
-- `com.bestcine.tv_X.Y.Z_arm.ipk` — pacote padrão (ajusta o cache de texturas conforme a RAM da TV).
-- `com.bestcine.tv_X.Y.Z_arm-highcache.ipk` — cache de 300 MB para TVs com 2 GB de RAM ou mais.
-
-Para instalação via Modo Desenvolvedor (`ares-install`), consulte [INSTALL.md](INSTALL.md).
+### 3️⃣ TV LG (Sistema webOS 3, 4, 5, 6, 22, 23, 24+)
+- **Jeito mais fácil (Homebrew Channel — atualiza sozinho):**
+  1. Abra o **Homebrew Channel** na TV LG.
+  2. Vá em **Settings › Repositories** e cole exatamente este link:
+     ```
+     https://github.com/BestCine/BestCine-TV/releases/latest/download/repo.json
+     ```
+  3. Procure por **BestCine TV** e clique em **Install**.
+- **Ou baixe o arquivo `.ipk` direto:**
+  👉 **[⬇️ BAIXAR BESTCINE TV PARA LG webOS (.ipk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.4/com.bestcine.tv_1.1.4_arm.ipk)** *(ou [versão High-Cache para TVs com 2 GB+ RAM](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.4/com.bestcine.tv_1.1.4_arm-highcache.ipk))*.
 
 ---
 
-### Samsung Tizen (`.tpk` nativo ou `.wgt`)
-
-Os pacotes Samsung são distribuídos sem assinatura de distribuidor para funcionarem em qualquer TV. Instale usando o [**Apps2Samsung**](https://github.com/Apps2Samsung/Apps2Samsung), que assina o pacote automaticamente para o DUID da sua TV.
-
-> **ATENÇÃO — Não olhe o ano em que você comprou a TV!**
-> No Brasil, muitos modelos Samsung (como a **AU8000**, linha 2021) continuaram sendo vendidos em 2022 e 2023. Escolha sempre pela **versão do Tizen** que aparece no Apps2Samsung ou pela **letra do modelo** da sua TV:
-
-| Versão do Tizen | Letras do modelo (Exemplos) | Linha | Arquivo recomendado |
-|---|---|---|---|
-| **Tizen 4.0 – 5.5** | `NU` / `RU` / `TU` *(ex.: TU7000, TU8000)* | 2018 – 2020 | `BestCineTV-1.0.1-NuvioTpk40.tpk` |
-| **Tizen 6.0** | `AU` / `Q60A` / `Q70A` / `Q80A` *(ex.: AU7700, AU8000)* | 2021 | `BestCineTV-1.0.1-NuvioTpk60.tpk` |
-| **Tizen 6.5 – 7.0** | `BU` / `CU` / `Q60B` / `Q60C` *(ex.: BU8000, CU7700)* | 2022 – 2023 | `BestCineTV-1.0.1-NuvioTpk65.tpk` |
-| **Tizen 8.0 – 9.0** | `DU` / `Q60D` / `S90D+` *(ex.: DU7700, DU8000)* | 2024+ | `BestCineTV-1.0.1-NuvioTpk.tpk` |
-
-> Se aparecer o erro `TypeLoadException` ao abrir, significa apenas que o `.tpk` instalado é de outra versão do Tizen — basta instalar o `.tpk` correspondente ao `tizen=X.X` exibido na tela.
-> Em TVs Tizen 5.5+, o pacote WebAssembly (`BestCineTV-1.0.1-tizen.wgt`) também pode ser usado como alternativa.
+### 4️⃣ Quer instalar no WINDOWS PC ou no CELULAR / TABLET Android?
+> ⚠️ **NÃO use os arquivos desta página no PC ou no Celular!** Baixe a versão de PC e Celular aqui:
+- 💻 **[⬇️ BAIXAR PARA WINDOWS PC (.msi)](https://github.com/BestCine/BestCine/releases/download/v1.1.4/BestCine-Windows-x64-1.1.4.msi)**
+- 📱 **[⬇️ BAIXAR PARA CELULAR / TABLET ANDROID (.apk)](https://github.com/BestCine/BestCine/releases/download/v1.1.4/BestCine-Android-arm64-v8a-1.1.4.apk)**
+- Página completa do app de PC & Celular: **[BestCine/BestCine](https://github.com/BestCine/BestCine)**
 
 ---
 
-### Android TV / Google TV / Fire TV Stick / TV Box
-
-1. Baixe o `.apk` na página de [Releases](https://github.com/BestCine/BestCine-TV/releases/latest):
-   - **`BestCineTV-1.0.1-android-lite-armv7.apk`** — Recomendado para **Fire TV Stick (Lite, HD, 4K)**, **Mi TV Stick** e **TV Boxes 32-bit**.
-   - **`BestCineTV-1.0.1-android-lite-arm64.apk`** — Recomendado para **Android TV / Google TV modernas (64-bit)**, Chromecast 4K, Shield e Fire TV 4K Max 2ª geração.
-2. Instale na TV usando **Downloader**, **Send Files to TV** ou um pendrive USB.
-3. Abra o **BestCine TV** e escaneie o QR Code com o celular para entrar na sua conta.
-
----
-
-## Compilação (Desenvolvedores)
-
-Este repositório não exige credenciais privadas para compilar — toda configuração de autenticação acontece em tempo de execução pelo login QR Code do usuário.
-
-- **LG webOS (`.ipk`)**: `bash tools/arm.sh --ipk --build` (requer Docker + imagem `tools/Dockerfile`).
-- **Samsung Tizen nativo (`.tpk`)**: `bash tools/tpk.sh` ou pelo GitHub Actions (`Actions › Build BestCine TV (Samsung Tizen TPK)`).
-- **Samsung Tizen WASM (`.wgt`)**: `bash tools/tizen.sh && bash tools/tizen-wgt.sh` (requer Emscripten SDK).
-- **Android TV (`.apk`)**: `bash tools/android.sh` (requer JDK 17 + Android SDK/NDK 27).
+## ✨ O que o BestCine TV tem?
+- 🔐 **Login por QR Code (sem digitar senha na TV):** escaneie com o celular e tudo sincroniza sozinho.
+- 📺 **TV ao Vivo estilo BestCine Windows:** sidebar de categorias à esquerda, **★ Favoritos** (segure OK em qualquer canal), grade de 5 colunas com logos grandes e programação ao vivo real.
+- 👨‍👩‍👧‍👦 **Até 6 perfis na mesma TV:** clique em **Trocar de perfil › `+ Novo perfil`** para cada pessoa da casa ter seu próprio *Continuar assistindo*, *Salvos*, *Favoritos* e *Trakt/Simkl* usando a mesma conta BestCine.
+- 🛡️ **DNS Anti-Bloqueio (Cloudflare DoH 1.1.1.1)** ativado de fábrica (funciona até em LG webOS antigas).
+- 🇧🇷 **100% Português (BR)** + **Trakt, Simkl, TMDB e Discord** integrados + **Atualização automática** direto pela TV.
 
 ---
 
-## Créditos e Licença
+## 🛠️ Créditos e Licença (GPL-3.0)
+O **BestCine TV** é um fork independente e gratuito distribuído sob a licença **[GNU General Public License v3.0 (GPL-3.0)](LICENSE)**, baseado no excelente projeto open-source **[iqui27/nuvio-native-legacy](https://github.com/iqui27/nuvio-native-legacy)** (C / SDL2 / OpenGL ES 2) e nos conceitos visuais de **[NuvioMedia / Tapframe](https://github.com/Tapframe)**.
 
-Este projeto é um fork independente distribuído sob a licença **[GNU General Public License v3.0 (GPL-3.0)](LICENSE)**.
-
-### Créditos principais
-- **[iqui27 / nuvio-native-legacy](https://github.com/iqui27/nuvio-native-legacy)** — Todo o mérito pela engenharia do motor nativo em C/SDL2/GLES2, pipelines de vídeo para LG webOS, Samsung Tizen (`.tpk` e `.wgt`) e Android TV, conversão DTS/Dolby Vision, interface 60 FPS e documentação técnica pertence ao autor original **iqui27** e aos contribuidores do `nuvio-native-legacy`.
-- **[NuvioMedia / Tapframe](https://github.com/Tapframe)** — Pelos conceitos originais de interface, ícones GPLv3 e arquitetura de ecossistema de onde o projeto upstream se originou.
-- **[Lucide Icons](https://lucide.dev)** — Ícones de ajustes sob licença ISC (`deploy/app/art/icones/lucide/`).
-- **[FFmpeg](https://ffmpeg.org/)** — Bibliotecas utilizadas nas builds com suporte a conversão DTS sob licença **LGPL 2.1 ou posterior**.
-
-### Aviso de não afiliação
-O **BestCine TV** é um fork independente mantido pela equipe BestCine. **Não é afiliado, endossado ou mantido oficialmente por `iqui27`, `NuvioMedia`, `Tapframe`, LG, Samsung ou Google.** Todas as marcas registradas e artes de metadados pertencem aos seus respectivos proprietários.
+- **Ícones:** [Lucide Icons](https://lucide.dev) (ISC).
+- **Áudio DTS/AC3:** [FFmpeg](https://ffmpeg.org/) (LGPL 2.1+).
+- **Aviso:** projeto independente, sem afiliação com `iqui27`, `NuvioMedia`, LG, Samsung ou Google.
