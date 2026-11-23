@@ -379,7 +379,7 @@ jobs:
 
           # Confere o arquivo que será publicado, não apenas o APK intermediário.
           actual_abis=$(unzip -Z1 "$APK" | sed -n 's#^lib/\([^/][^/]*\)/.*#\1#p' | sort -u)
-          expected_abis=$(printf '%s\\n' arm64-v8a armeabi-v7a | sort -u)
+          expected_abis=$(printf '%s\n' arm64-v8a armeabi-v7a | sort -u)
           if [ "$actual_abis" != "$expected_abis" ]; then
             echo "ABIs inesperadas no APK: $actual_abis" >&2
             exit 1
