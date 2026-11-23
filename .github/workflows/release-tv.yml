@@ -374,7 +374,23 @@ jobs:
           VER=$(python3 -c 'import json; print(json.load(open("deploy/app/appinfo.json"))["version"])')
           mkdir -p dist-android
           # APK único com os dois ABIs; o atualizador procura este sufixo.
-          cp "build/android/Nuvio-${VER}-android-lite-universal-debug.apk" "dist-android/BestCineTV-android-lite-universal.apk"
+          APK="dist-android/BestCineTV-android-lite-universal.apk"
+          cp "build/android/Nuvio-${VER}-android-lite-universal-debug.apk" "$APK"
+
+          # Confere o arquivo que será publicado, não apenas o APK intermediário.
+          actual_abis=$(unzip -Z1 "$APK" | sed -n 's#^lib/\([^/][^/]*\)/.*#\1#p' | sort -u)
+          expected_abis=$(printf '%s\\n' arm64-v8a armeabi-v7a | sort -u)
+          if [ "$actual_abis" != "$expected_abis" ]; then
+            echo "ABIs inesperadas no APK: $actual_abis" >&2
+            exit 1
+          fi
+
+          sha256sum "$APK" > "$APK.sha256"
+          {
+            echo "### Android TV APK"
+            echo "- ABIs: arm64-v8a e armeabi-v7a"
+            echo "- SHA-256: $(sha256sum "$APK" | cut -d' ' -f1)"
+          } >> "$GITHUB_STEP_SUMMARY"
           ls -lh dist-android
 
       - name: Resumo em caso de erro
@@ -389,7 +405,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dist-android
-          path: dist-android/*.apk
+          path: dist-android/*
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
