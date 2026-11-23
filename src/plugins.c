@@ -83,7 +83,8 @@ static void gerAvancar(void) {
   if (grupoDe()) rede_grupo_avancar(grupoDe());
 }
 
-int plugins_disponivel(void) { return (plugrede_capacidades() & PR_CAP_REDE) != 0; }
+// BestCine TV: fork fechado — repositorios de plugins de terceiros desativados.
+int plugins_disponivel(void) { return 0; }
 
 // ------------------------------------------------------------ utilitarios
 

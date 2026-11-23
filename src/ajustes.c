@@ -1106,7 +1106,7 @@ static const char *V_HERO_FONTE[] = {
 // V_CW_FONTE: o indice e o gravado ("salvosDestino N"), e 1 tem de continuar
 // sendo o Trakt. Com ele o "+" publica no Plan to Watch, e o Plan to Watch
 // passa a entrar nos Salvos (descoberta.c). Nomes em ajustes.h (AJ_SALVOS_*).
-static const char *V_SALVOS[]    = { "Lista do Nuvio", "Watchlist do Trakt",
+static const char *V_SALVOS[]    = { "Lista do BestCine", "Watchlist do Trakt",
                                      "Plan to Watch do Simkl" };
 // PAIS DA GRADE DO GUIA (#158). O indice e o gravado ("epgPaisLocal N"):
 // novos entram NO FIM. O nome de cada pais vai na propria lingua dele, que e
@@ -9888,7 +9888,7 @@ static void eventoTela(const SDL_Event *e) {
       }
       return;
     }
-    if (focoOp == AJ_PLUGINS) { pediuPlugins = 1; return; }
+    if (focoOp == AJ_PLUGINS) { return; }
     if (focoOp == AJ_FILTROS_FONTES) { ffAbrir(); return; }
     if (focoOp == AJ_FALHA_PROVEDOR_ORDEM || focoOp == AJ_FALHA_ADDON_ORDEM) { faAbrir(focoOp == AJ_FALHA_PROVEDOR_ORDEM); return; }
     if (focoOp == AJ_FONTE_ORDEM) { frAbrir(3); return; }
