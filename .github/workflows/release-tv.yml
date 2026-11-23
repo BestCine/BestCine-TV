@@ -36,6 +36,7 @@ jobs:
     env:
       NUVIO_P2P_MOTOR: none
       NUVIO_BUILD_PLATFORM: linux/arm64
+      NUVIO_RUST_MKVCORE: "0"
     steps:
       - uses: actions/checkout@v4
 
@@ -212,6 +213,7 @@ jobs:
       - name: Compilar BestCine TV (.wgt)
         run: |
           set -o pipefail
+          ln -sfn "$EMSDK" "$HOME/emsdk"
           VER=$(python3 -c 'import json; print(json.load(open("deploy/app/appinfo.json"))["version"])')
           export NUVIO_WGT_NOME="BestCineTV-${VER}-tizen"
           bash tools/tizen.sh 2>&1 | tee build-wgt.log
