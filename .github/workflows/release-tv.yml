@@ -332,6 +332,7 @@ jobs:
       - name: Baixar artefatos gerados
         uses: actions/download-artifact@v4
         with:
+          pattern: dist-*
           path: release-assets
           merge-multiple: true
 
