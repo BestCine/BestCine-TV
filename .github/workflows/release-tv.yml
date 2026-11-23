@@ -17,10 +17,10 @@ on:
         description: "Publicar automaticamente na aba Releases"
         type: boolean
         default: true
-
-concurrency:
-  group: release-tv-${{ github.ref }}
-  cancel-in-progress: true
+      incluir_tpk:
+        description: "Compilar Samsung Tizen .tpk (mais demorado na primeira vez)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -91,6 +91,7 @@ jobs:
   # ---------------------------------------------------------------------------
   tizen-tpk:
     name: Samsung Tizen nativo (.tpk)
+    if: ${{ github.event.inputs.incluir_tpk != 'false' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
@@ -261,8 +262,9 @@ jobs:
       - name: Instalar pacotes Android SDK/NDK 27 + ferramentas
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg ninja-build cmake
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "ndk;27.2.12479018" "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1" >/dev/null
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses >/dev/null 2>&1 || true
+          "$SDKM" --install "ndk;27.2.12479018" "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1"
 
       - name: Restaurar cache dependencias nativas Android
         uses: actions/cache@v4
