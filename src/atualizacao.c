@@ -465,14 +465,9 @@ static int acharAnexo(const char *corpo, char *dst, size_t tam, char *hash, size
 #endif
 
 #ifdef NV_ANDROID
-// Match the installed variant exactly. Pointer width follows the running
-// process, including 32-bit Fire OS on 64-bit hardware.
+// O APK Lite contem arm32 e arm64, entao o atualizador usa um unico anexo.
 #ifdef NV_APK_LITE
-#if UINTPTR_MAX == UINT32_MAX
-#define AT_APK_SUFIXO "-android-lite-armv7.apk"
-#else
-#define AT_APK_SUFIXO "-android-lite-arm64.apk"
-#endif
+#define AT_APK_SUFIXO "-android-lite-universal.apk"
 #else
 #define AT_APK_SUFIXO "-android.apk"
 #endif

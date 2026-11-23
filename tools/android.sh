@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build do Nuvio para Android TV/Mobile (SDL2 + GLES2, nucleo C em libmain.so).
 #
-#   NUVIO_APK_LITE=1 tools/android.sh --release-only -> signed APK without the P2P motor
+#   NUVIO_APK_LITE=1 tools/android.sh --release-only -> signed universal APK without the P2P motor
 #   tools/android.sh --debug-only -> debug only, never read release signing keys
 #   tools/android.sh            -> APK debug em build/android/Nuvio-<v>-android-debug.apk
 #   NUVIO_RUST_MKVCORE=0 tools/android.sh -> nucleo mkv em C (padrao: Rust, ligado em 14/10/2026)
@@ -135,10 +135,8 @@ if [ "$LITE" = 1 ]; then APP_BUILD="android/app/build-lite"; fi
 APKS=()
 if [ "$RELEASE_ONLY" = 0 ]; then
   if [ "$LITE" = 1 ]; then
-    for pair in armeabi-v7a:armv7 arm64-v8a:arm64; do
-      cp "$APP_BUILD/outputs/apk/debug/app-${pair%:*}-debug.apk" "$SAIDA/Nuvio-$VER-android-lite-${pair#*:}-debug.apk"
-      APKS+=("$SAIDA/Nuvio-$VER-android-lite-${pair#*:}-debug.apk")
-    done
+    cp "$APP_BUILD/outputs/apk/debug/app-debug.apk" "$SAIDA/Nuvio-$VER-android-lite-universal-debug.apk"
+    APKS+=("$SAIDA/Nuvio-$VER-android-lite-universal-debug.apk")
   else
     cp "$APP_BUILD/outputs/apk/debug/app-debug.apk" "$SAIDA/Nuvio-$VER-android-debug.apk"
     APKS+=("$SAIDA/Nuvio-$VER-android-debug.apk")
@@ -150,10 +148,8 @@ if [ "$DEBUG_ONLY" = 0 ] && [ -n "${NUVIO_KEYSTORE:-}" ]; then
     APKS+=("$SAIDA/Nuvio-$VER-android.apk")
     "${GR[@]}" -Pnuvio.apkLite=1 assembleRelease
   fi
-  for pair in armeabi-v7a:armv7 arm64-v8a:arm64; do
-    cp "android/app/build-lite/outputs/apk/release/app-${pair%:*}-release.apk" "$SAIDA/Nuvio-$VER-android-lite-${pair#*:}.apk"
-    APKS+=("$SAIDA/Nuvio-$VER-android-lite-${pair#*:}.apk")
-  done
+  cp "android/app/build-lite/outputs/apk/release/app-release.apk" "$SAIDA/Nuvio-$VER-android-lite-universal.apk"
+  APKS+=("$SAIDA/Nuvio-$VER-android-lite-universal.apk")
 else
   echo "  release fora: sem NUVIO_KEYSTORE"
 fi
@@ -163,7 +159,6 @@ SEGREDO='(^|/)(livetv-contas-|epg-conta-|m3u-|debrid|provider-scope|fontefalha|f
 for a in "${APKS[@]}"; do
   L=$(unzip -Z1 "$a")
   ABIS=(arm64-v8a armeabi-v7a)
-  case "$a" in *-lite-armv7*.apk) ABIS=(armeabi-v7a);; *-lite-arm64*.apk) ABIS=(arm64-v8a);; esac
   actual_abis=$(printf '%s\n' "$L" | awk -F/ '$1 == "lib" {print $2}' | sort -u)
   expected_abis=$(printf '%s\n' "${ABIS[@]}" | sort -u)
   [ "$actual_abis" = "$expected_abis" ] || { echo "android.sh: $a ABI mismatch" >&2; exit 1; }
