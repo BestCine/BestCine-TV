@@ -278,6 +278,8 @@ static const char *uxSinonimos(int op) {
     case AJ_HERO_NOTAS: return "nota notas imdb destaque hero avaliacao rating ratings esconder mostrar";
     case AJ_HERO_ANO: return "ano destaque hero lancamento year data esconder mostrar";
     case AJ_HERO_PASTA_DETALHES: return "pasta colecao detalhes destaque hero folder collection details title";
+    case AJ_BC_CONTA: return "bestcine conta plano assinatura vitalicio renovar atualizar catalogos usuario email";
+    case AJ_BC_DNS: return "dns doh cloudflare google 1.1.1.1 8.8.8.8 bloqueio operadora internet rede anti-bloqueio";
     case AJ_HERO_DURACAO: return "duracao tempo destaque hero runtime minutos horas esconder mostrar";
     case AJ_HERO_TRAILER: return "trailer trailers destaque topo hero autoplay automatico";
     case AJ_FOCO_TRAILER: return "trailer trailers cartaz poster foco autoplay";
@@ -324,7 +326,7 @@ static const char *uxCaminhoAntigo(int op) {
     case AJ_JF_LIGADO: case AJ_JF_SERVIDOR: case AJ_JF_ENTRAR: case AJ_JF_SAIR:
     case AJ_EM_SERVIDOR: case AJ_EM_ENTRAR: case AJ_EM_SAIR:
     case AJ_PX_ENTRAR: case AJ_PX_SERVIDOR: case AJ_PX_SAIR:
-    case AJ_PERFIL_ATIVO: case AJ_SYNC: case AJ_PERFIL_PESQ: case AJ_PERFIL_EDITAR: case AJ_PERFIL_INFANTIL: case AJ_SAIR:
+    case AJ_PERFIL_ATIVO: case AJ_SYNC: case AJ_BC_CONTA: case AJ_BC_DNS: case AJ_PERFIL_PESQ: case AJ_PERFIL_EDITAR: case AJ_PERFIL_INFANTIL: case AJ_SAIR:
     case AJ_TRAKT: case AJ_SIMKL: case AJ_DISCORD: case AJ_SALVOS_DEST: case AJ_CW_FONTE: case AJ_CW_PROXIMO: case AJ_ENQUETES:
     case AJ_HIST_CONTA: case AJ_SOCIAL:
       return "Contas e serviços";

@@ -27,7 +27,7 @@ android {
     ndkVersion = "27.2.12479018"
 
     defaultConfig {
-        applicationId = "space.nuvio.nativelegacy"
+        applicationId = "com.bestcine.tv"
         minSdk = 24
         targetSdk = 35
         versionCode = vx * 10000 + vy * 100 + vz

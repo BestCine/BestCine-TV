@@ -70,32 +70,13 @@ if [ "$VER" != "$VERT" ]; then
   echo "env.sh: appinfo.json diz $VER e tizen-config.xml diz $VERT -- alinhe antes de compilar" >&2; exit 2
 fi
 
-# Release unificada: conta, Trakt, Simkl e TMDB obrigatorios; demais opcionais.
-if [ "${NUVIO_REQUIRE_ALL:-0}" = 1 ]; then
-  MISSING_ALL=()
-  for k in URL KEY TVB TRK TRS SMK SMA TMD; do
-    v="${!k}"
-    [ -n "${v//[[:space:]]/}" ] || MISSING_ALL+=("$k")
-  done
-  [ "${#MISSING_ALL[@]}" = 0 ] || {
-    echo "env.sh: configuracao de release vazia: ${MISSING_ALL[*]}" >&2; exit 3;
-  }
+# BestCine TV autentica direto em https://bestcine.dpdns.org via QR Code
+# (sem depender de credenciais Supabase/Nuvio no build).
+if [ -z "$TVB" ]; then
+  TVB="https://bestcine.dpdns.org/tv"
 fi
-
-MISSING_CORE=()
-[ -n "$URL" ] || MISSING_CORE+=(NUVIO_SUPABASE_URL)
-[ -n "$KEY" ] || MISSING_CORE+=(NUVIO_SUPABASE_ANON_KEY)
-[ -n "$TVB" ] || MISSING_CORE+=(TV_LOGIN_WEB_BASE_URL)
-if [ "${#MISSING_CORE[@]}" -gt 0 ]; then
-  if [ "$REQUIRE_CORE" -eq 1 ]; then
-    # A build produtiva nao pode instalar e so descobrir na tela de login que
-    # recebeu macros vazias. Liste apenas nomes, nunca valores ou caminhos.
-    echo "env.sh: configuracao obrigatoria ausente: ${MISSING_CORE[*]}" >&2
-    exit 3
-  elif [ "$ALLOW_UNCONFIGURED" -eq 0 ]; then
-    # O modo permissivo permanece para harnesses diagnosticos explicitos.
-    echo "env.sh: configuracao de servidor incompleta; use --require-core na release" >&2
-  fi
+if [ -z "$SMA" ]; then
+  SMA="BestCine"
 fi
 
 # --env-file: escreve as variaveis num arquivo para o `docker run --env-file`.

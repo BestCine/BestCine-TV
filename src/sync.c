@@ -1319,6 +1319,43 @@ static void *rodar(void *u) {
   addonsCiclo = 0;
   copiaQuandoCiclo = 0;
   addonsLidosCiclo = 0;
+
+  // Modo nativo BestCine TV: atualiza status/plano/banimento no servidor BestCine
+  // e instala exclusivamente o manifesto pessoal do usuario (sem depender de Supabase).
+  if (sessao_bc_ativa()) {
+    char manifestUrl[512];
+    int statusRes = sessao_bc_atualizar_status();
+    if (statusRes < 0 || !sessao_bc_ativa()) {
+      resumoFixo("Sessão BestCine encerrada");
+      estado = SYNC_PRONTO;
+      PRONTO_PUBLICAR(fioPronto, 1);
+      return NULL;
+    }
+    if (sessao_bc_manifest_url(manifestUrl, sizeof manifestUrl)) {
+      memset(&addonsRem[0], 0, sizeof addonsRem[0]);
+      snprintf(addonsRem[0].url, sizeof addonsRem[0].url, "%s", manifestUrl);
+      snprintf(addonsRem[0].nome, sizeof addonsRem[0].nome, "BestCine");
+      addonsRem[0].ativo = 1;
+      nAddonsRem = 1;
+      nAddonsTogglesRem = 1;
+      addonsTogglesRem[0] = addonsRem[0];
+      temAddonsRem = 1;
+      PRONTO_PUBLICAR(addonsCedo, 1);
+      {
+        char msg[200];
+        const char *plano = sessao_bc_plano();
+        const char *nome = sessao_bc_nome();
+        snprintf(msg, sizeof msg, "BestCine conectado (%s • Plano %s)",
+                 nome[0] ? nome : "Conta BestCine",
+                 plano[0] ? plano : "gratuito");
+        resumoFixo(msg);
+      }
+    }
+    estado = SYNC_PRONTO;
+    PRONTO_PUBLICAR(fioPronto, 1);
+    return NULL;
+  }
+
   perfis_puxar_sessao(sessaoDoCiclo, usuarioDoCiclo, tokenDoCiclo);
   if (!perfilDoCicloAtual()) {
     estado = SYNC_PRONTO;

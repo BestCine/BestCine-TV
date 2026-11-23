@@ -5,7 +5,7 @@
 #define NV_HOMEVAZIO_H
 #include <SDL2/SDL.h>
 
-#define HOMEVAZIO_URL "https://github.com/iqui27/nuvio-native-legacy/blob/master/docs/guia/phone-setup.md"
+#define HOMEVAZIO_URL "https://bestcine.dpdns.org"
 
 // Sem addons ou sem fileiras e sem addon de catalogo, depois do sync.
 int  homevazio_ativo(int fileiras);

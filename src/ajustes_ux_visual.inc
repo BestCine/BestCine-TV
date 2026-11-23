@@ -260,6 +260,8 @@ static const char *ajVisualIcone(int op) {
     case AJ_LIVETV_PROXY: return "aj_stethoscope";
     case AJ_LIVETV_SUGERIR: return "aj_layers";
     case AJ_PERFIL_ATIVO: return "aj_user-round";
+    case AJ_BC_CONTA: return "aj_user-round";
+    case AJ_BC_DNS: return "aj_shield-check";
     case AJ_SYNC: return "aj_cloud";
     case AJ_ADDONS: return "aj_user-round";
     case AJ_PLUGINS: return "aj_puzzle";

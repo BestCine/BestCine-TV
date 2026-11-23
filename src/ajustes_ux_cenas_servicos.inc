@@ -769,6 +769,7 @@ static int ajcNovaServicos(int sec, int op) {
     case AJ_LIVETV_MODO: ajcSvModo(); return 1;
     case AJ_LIVETV_PROXY: ajcSvProxy(); return 1;
     case AJ_PERFIL_ATIVO: ajcSvPerfilAtivo(); return 1;
+    case AJ_BC_CONTA: case AJ_BC_DNS:
     case AJ_SYNC: ajcSvSync(); return 1;
     case AJ_PERFIL_PESQ: ajcSvPesq(); return 1;
     case AJ_PERFIL_EDITAR: ajcSvPerfilEditar(); return 1;

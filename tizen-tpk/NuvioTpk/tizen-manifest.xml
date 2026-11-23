@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns="http://tizen.org/ns/packages" api-version="8" package="NuvioTV002.Nuvio" version="1.5.1">
+<manifest xmlns="http://tizen.org/ns/packages" api-version="8" package="BestCine01.BestCineTV" version="1.0.0">
   <profile name="tv" />
-  <ui-application appid="NuvioTV002.Nuvio" exec="NuvioTpk.dll" type="dotnet"
+  <ui-application appid="BestCine01.BestCineTV" exec="NuvioTpk.dll" type="dotnet"
                   multiple="false" taskmanage="true" nodisplay="false" launch_mode="single">
-    <label>Nuvio Legacy</label>
+    <label>BestCine TV</label>
     <icon>NuvioTpk.png</icon>
   </ui-application>
   <privileges>

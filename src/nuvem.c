@@ -5,6 +5,9 @@
 #include <string.h>
 #include <time.h>
 
+#ifndef NV_BESTCINE_URL
+#define NV_BESTCINE_URL "https://bestcine.dpdns.org"
+#endif
 #ifndef NV_SUPABASE_URL
 #define NV_SUPABASE_URL ""
 #endif
@@ -12,7 +15,7 @@
 #define NV_SUPABASE_ANON_KEY ""
 #endif
 #ifndef NV_TV_LOGIN_BASE
-#define NV_TV_LOGIN_BASE ""
+#define NV_TV_LOGIN_BASE "https://bestcine.dpdns.org/tv"
 #endif
 #ifndef NV_TRAKT_CLIENT_ID
 #define NV_TRAKT_CLIENT_ID ""
@@ -24,10 +27,11 @@
 #define NV_SIMKL_CLIENT_ID ""
 #endif
 #ifndef NV_SIMKL_APP
-#define NV_SIMKL_APP "nuvio"
+#define NV_SIMKL_APP "BestCine"
 #endif
 
-static char url[300]      = NV_SUPABASE_URL;
+static char bestcineUrl[300] = NV_BESTCINE_URL;
+static char url[300]         = NV_SUPABASE_URL;
 static char anon[1200]    = NV_SUPABASE_ANON_KEY;
 static char baseLogin[300] = NV_TV_LOGIN_BASE;
 static char traktCliente[128] = NV_TRAKT_CLIENT_ID;
@@ -64,25 +68,25 @@ int nuvem_configurar(const char *dirArte) {
   }
   // Barra no fim quebraria toda concatenacao com o caminho da RPC: o web
   // normaliza a base do mesmo jeito.
+  { char *fim = bestcineUrl + strlen(bestcineUrl);
+    while (fim > bestcineUrl && fim[-1] == '/') *--fim = 0; }
   { char *fim = url + strlen(url);
     while (fim > url && fim[-1] == '/') *--fim = 0; }
   { char *fim = baseLogin + strlen(baseLogin);
     while (fim > baseLogin && fim[-1] == '/') *--fim = 0; }
-
-  if (!url[0] || !anon[0]) {
-    // Dizer isto alto importa: sem configuracao o app nao "fica sem sync", ele
-    // fica sem LOGIN, e a tela vai parecer quebrada sem explicar por que.
-    printf("[nuvem] SEM CONFIGURACAO (url=%s chave=%s): login e sync desligados\n",
-           url[0] ? "ok" : "vazia", anon[0] ? "ok" : "vazia");
-    return 0;
+  if (!baseLogin[0] && bestcineUrl[0]) {
+    snprintf(baseLogin, sizeof baseLogin, "%s/tv", bestcineUrl);
   }
-  printf("[nuvem] %s\n", url);
+
+  printf("[nuvem] BestCine TV backend: %s\n", bestcineUrl);
   return 1;
 }
 
 const char *nuvem_ultimo_erro(void) { return rede_ultimo_erro(); }
-int         nuvem_pronta(void)     { return url[0] && anon[0]; }
-const char *nuvem_url(void)        { return url; }
+int         nuvem_pronta(void)      { return bestcineUrl[0] != 0; }
+int         nuvem_supabase_pronta(void) { return url[0] && anon[0]; }
+const char *nuvem_bestcine_url(void){ return bestcineUrl; }
+const char *nuvem_url(void)         { return url; }
 const char *nuvem_anon(void)       { return anon; }
 const char *nuvem_base_login(void) { return baseLogin; }
 const char *nuvem_trakt_cliente(void) { return traktCliente; }
@@ -96,7 +100,7 @@ char *nuvem_post(const char *caminho, const char *corpoJson,
   char cabApi[1300], cabAut[1300];
   const char *cab[3];
   if (status) *status = 0;
-  if (!nuvem_pronta() || !caminho) return NULL;
+  if (!nuvem_supabase_pronta() || !caminho) return NULL;
 
   snprintf(completo, sizeof completo, "%s%s%s", url,
            caminho[0] == '/' ? "" : "/", caminho);
@@ -167,7 +171,7 @@ char *nuvem_addon_alternar(const char *consulta, int ativo, const char *bearer, 
   RedeResposta r = {0};
 #endif
   if (status) *status = 0;
-  if (!nuvem_pronta() || !bearer || !*bearer) return NULL;
+  if (!nuvem_supabase_pronta() || !bearer || !*bearer) return NULL;
   snprintf(completo, sizeof completo, "%s/rest/v1/addons?%s", url, consulta);
   snprintf(cabApi, sizeof cabApi, "apikey: %s", anon);
   snprintf(cabAut, sizeof cabAut, "Authorization: Bearer %s", bearer);

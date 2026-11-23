@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <widget xmlns="http://www.w3.org/ns/widgets"
         xmlns:tizen="http://tizen.org/ns/widgets"
-        id="http://nuvio.tv/native"
-        version="2.0.8"
+        id="http://bestcine.dpdns.org/tv"
+        version="1.0.0"
         viewmodes="maximized">
 
   <!-- required_version 5.5: e a partir dele que a TV executa WebAssembly
        (modelos 2020). Declarar menos faria o pacote instalar num aparelho onde
        o .wasm nunca carrega, e o sintoma seria tela preta sem mensagem. -->
-  <tizen:application id="NuvioTV002.NuvioNative"
-                     package="NuvioTV002"
+  <tizen:application id="BestCine01.BestCineTV"
+                     package="BestCine01"
                      required_version="5.5"/>
   <tizen:profile name="tv"/>
 
-  <name>Nuvio Legacy</name>
+  <name>BestCine TV</name>
   <icon src="icon.png"/>
   <content src="index.html"/>
   <tizen:content-security-policy>

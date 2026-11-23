@@ -42,7 +42,19 @@ int         sessao_logada(void);          // 1 so com sessao de USUARIO
 const char *sessao_codigo(void);          // codigo a exibir; "" fora do fluxo
 const char *sessao_url_login(void);       // URL a exibir
 const char *sessao_erro(void);            // ultima falha, para a tela mostrar
-const char *sessao_usuario(void);         // `sub` do JWT; "" quando deslogado
+const char *sessao_usuario(void);         // `sub` do JWT ou `bc_<id>`; "" quando deslogado
+
+// Conta BestCine (login por QR Code em /api/tv/code + /api/tv/poll)
+int         sessao_bc_ativa(void);
+const char *sessao_bc_token(void);
+const char *sessao_bc_nome(void);
+const char *sessao_bc_email(void);
+const char *sessao_bc_plano(void);
+const char *sessao_bc_vencimento(void);
+int         sessao_bc_manifest_url(char *dst, size_t n);
+// Atualiza plano/nome/status no servidor e desloga automaticamente se banido ou token invalido.
+// Devolve 1 = ativo, 0 = erro de rede (mantem sessao), -1 = banido/invalido (deslogou).
+int         sessao_bc_atualizar_status(void);
 
 // TOKEN DE ACESSO CRU, para quem precisa se autenticar em um servidor que NAO
 // e o Supabase do Nuvio. Hoje so o servico de recomendacoes (recomenda.c), que
