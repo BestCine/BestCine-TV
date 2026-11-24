@@ -726,9 +726,46 @@ static char *lerPerfil(const char *tipo) {
 // para qualquer fonte ate a primeira lista publicada dizer de qual fonte o canal
 // e — ai o arquivo novo e gravado com a chave (favMigrar). O antigo fica no
 // disco por duas versoes (volta de versao nao perde favorito).
-typedef struct { char chave[LTV_CHAVE]; char id[80]; } GFav;
+typedef struct { char chave[LTV_CHAVE]; char id[128]; } GFav;
 static GFav fav[G_MAX_FAV]; static int nFav, favLido, favLegado;
 static int  favOrd[G_MAX_FAV];  static int nFavOrd;   // indices em canais[]
+
+// Chave estavel para canais BestCine TV: o servidor emite `bestcine_tv_<index>`
+// (indice numerico volatil que muda quando a lista e atualizada). Guardamos
+// `bcname:<nome normalizado>` para que os favoritos sobrevivam a atualizacoes
+// da lista e do aplicativo.
+static void favIdEstavel(const GCanal *c, char *dst, size_t n) {
+  if (!n) return;
+  dst[0] = 0;
+  if (!c) return;
+  if (c->id && !strncmp(c->id, "bestcine_tv_", 12) && c->nome && c->nome[0]) {
+    const char *p = c->nome;
+    size_t w = 0;
+    int esp = 0;
+    if (n > 7) {
+      memcpy(dst, "bcname:", 7);
+      w = 7;
+    }
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+    for (; *p && w + 1 < n; p++) {
+      unsigned char ch = (unsigned char)*p;
+      if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n') {
+        esp = 1;
+        continue;
+      }
+      if (esp && w > 7) {
+        if (w + 2 >= n) break;
+        dst[w++] = ' ';
+      }
+      esp = 0;
+      if (ch >= 'A' && ch <= 'Z') ch = (unsigned char)(ch - 'A' + 'a');
+      dst[w++] = (char)ch;
+    }
+    dst[w] = 0;
+    if (w > 7) return;
+  }
+  if (c->id) snprintf(dst, n, "%s", c->id);
+}
 
 static const char *chaveDo(const GCanal *c) {
   return c->fonte >= 0 && c->fonte < nLtvF ? ltvF[c->fonte].chave : "";
@@ -736,8 +773,15 @@ static const char *chaveDo(const GCanal *c) {
 static int favIndiceCanal(const GCanal *c) {
   int i;
   const char *ch = chaveDo(c);
-  for (i = 0; i < nFav; i++)
+  char estavel[128];
+  favIdEstavel(c, estavel, sizeof estavel);
+  for (i = 0; i < nFav; i++) {
+    if (!strncmp(fav[i].id, "bcname:", 7)) {
+      if (!strcmp(fav[i].id, estavel)) return i;
+      continue;
+    }
     if (!strcmp(fav[i].id, c->id) && (!fav[i].chave[0] || !strcmp(fav[i].chave, ch))) return i;
+  }
   return -1;
 }
 static int favIndice(const char *id) {
@@ -748,7 +792,7 @@ static int favIndice(const char *id) {
 static void favLerTexto(const char *t) {
   while (t && *t && nFav < G_MAX_FAV) {
     const char *fim = t + strcspn(t, "\n");
-    char linha[200];
+    char linha[256];
     size_t k = (size_t)(fim - t);
     if (k < sizeof linha) {
       memcpy(linha, t, k); linha[k] = 0;
@@ -769,27 +813,45 @@ static void favLer(void) {
 }
 
 static void favGravar(void) {
-  char buf[G_MAX_FAV * 110]; size_t n = 0;
-  for (int i = 0; i < nFav && n + 110 < sizeof buf; i++)
-    n += (size_t)snprintf(buf + n, sizeof buf - n, "%s\t%s\n", fav[i].chave, fav[i].id);
+  size_t cap = (size_t)G_MAX_FAV * 168;
+  char *buf = (char *)malloc(cap);
+  if (!buf) return;
+  size_t n = 0;
+  for (int i = 0; i < nFav && n + 168 < cap; i++)
+    n += (size_t)snprintf(buf + n, cap - n, "%s\t%s\n", fav[i].chave, fav[i].id);
   buf[n] = 0;
   char nome[48];
   arquivoPerfil("ltv-fav", nome, sizeof nome);
   dados_gravar(nome, buf);
+  free(buf);
 }
 
-// MIGRACAO: favorito sem fonte ganha a do primeiro canal com aquele id. So
-// grava quando alguma linha mudou.
+// MIGRACAO: favorito sem fonte ganha a do primeiro canal com aquele id, e
+// favoritos legados `bestcine_tv_<index>` sao migrados para `bcname:<nome>`.
+// So grava quando alguma linha mudou.
 static void favMigrar(void) {
   int i, j, mudou = 0;
   for (i = 0; i < nFav; i++) {
-    if (fav[i].chave[0]) continue;
-    for (j = 0; j < nCanais; j++)
+    int precisaChave = !fav[i].chave[0];
+    int eVolatilBc = !strncmp(fav[i].id, "bestcine_tv_", 12);
+    if (!precisaChave && !eVolatilBc) continue;
+    for (j = 0; j < nCanais; j++) {
       if (!strcmp(canais[j].id, fav[i].id)) {
-        snprintf(fav[i].chave, sizeof fav[i].chave, "%s", chaveDo(&canais[j]));
-        mudou = 1;
+        if (precisaChave) {
+          snprintf(fav[i].chave, sizeof fav[i].chave, "%s", chaveDo(&canais[j]));
+          mudou = 1;
+        }
+        if (eVolatilBc) {
+          char estavel[128];
+          favIdEstavel(&canais[j], estavel, sizeof estavel);
+          if (estavel[0] && strcmp(estavel, fav[i].id)) {
+            snprintf(fav[i].id, sizeof fav[i].id, "%s", estavel);
+            mudou = 1;
+          }
+        }
         break;
       }
+    }
   }
   if (mudou || favLegado) {
     favLegado = 0;
@@ -810,7 +872,7 @@ static void favAlternar(GCanal *c) {
   if (i >= 0) { memmove(&fav[i], &fav[i + 1], (size_t)(nFav - i - 1) * sizeof fav[0]); nFav--; c->fav = 0; }
   else if (nFav < G_MAX_FAV) {
     snprintf(fav[nFav].chave, sizeof fav[nFav].chave, "%s", chaveDo(c));
-    snprintf(fav[nFav].id, sizeof fav[nFav].id, "%s", c->id);
+    favIdEstavel(c, fav[nFav].id, sizeof fav[nFav].id);
     nFav++; c->fav = 1;
   }
   favGravar();
@@ -3418,7 +3480,10 @@ int guia_info_canal(const char *id, int *numero, int *total, char *cat, size_t n
 
 int guia_e_favorito(const char *id) {
   if (!favLido) favLer();
-  return id && id[0] && favIndice(id) >= 0;
+  if (!id || !id[0]) return 0;
+  GCanal *c = canalPorId(id);
+  if (c) return favIndiceCanal(c) >= 0;
+  return favIndice(id) >= 0;
 }
 
 void guia_alternar_favorito(const char *id) {
