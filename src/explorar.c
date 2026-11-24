@@ -1536,7 +1536,7 @@ void explorar_a11y(char *dst, size_t cap) {
   if (!cap) return;
   dst[0] = 0;
   if (modo == MODO_CLIMAS && clFoco >= 0 && clFoco < climas.n) {
-    snprintf(dst, cap, "Explorar: %s, %d de %d", climas.c[clFoco].nome, clFoco + 1, climas.n);
+    snprintf(dst, cap, "Explorar: %s, %d de %d", i18n(mapa_clima_nome(climas.c[clFoco].id)), clFoco + 1, climas.n);
     return;
   }
   if (modo == MODO_CLIMA && clAberto >= 0 && clAberto < climas.n && caN[caLinha] > 0) {
@@ -1545,7 +1545,7 @@ void explorar_a11y(char *dst, size_t cap) {
       const MapaObra *o = &climas.c[clAberto].itens[caIdx[caLinha][col]];
       if (o->titulo[0]) {
         snprintf(dst, cap, "Explorar, %s: %s, %d de %d",
-                 climas.c[clAberto].nome, o->titulo, col + 1, caN[caLinha]);
+                 i18n(mapa_clima_nome(climas.c[clAberto].id)), o->titulo, col + 1, caN[caLinha]);
         return;
       }
     }
