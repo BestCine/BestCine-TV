@@ -555,6 +555,9 @@ static int fioConsulta(void *arg) {
 #ifdef NV_ANDROID
   char lApk[512] = "", lApkH[80] = "";
 #endif
+#ifdef __EMSCRIPTEN__
+  int lWgt = 0;
+#endif
   (void)arg;
   body[0] = 0;
 #ifdef NV_VIDAA
@@ -569,7 +572,7 @@ static int fioConsulta(void *arg) {
     textoJson(corpo, "tag_name", tag, sizeof tag);
     textoJson(corpo, "body", body, sizeof body);
     // Sem anexo da variante desta build, ipkUrl fica vazio e podeInstalar()
-    // devolve 0: o cartao aparece so com a URL da pagina.
+    // devolve 0: o cartao so aparece quando o arquivo desta plataforma ja foi publicado.
     if (AT_INSTALA) acharIpk(corpo, lIpk, sizeof lIpk, lIpkH, sizeof lIpkH, AT_SUFIXO);
 #ifdef NV_TPK
     // Anexo libnuvio.so para a auto-atualizacao do .tpk (staging por hash).
@@ -578,12 +581,24 @@ static int fioConsulta(void *arg) {
 #ifdef NV_ANDROID
     acharApk(corpo, lApk, sizeof lApk, lApkH, sizeof lApkH);
 #endif
+#ifdef __EMSCRIPTEN__
+    lWgt = (strstr(corpo, "tizen.wgt\"") != NULL);
+#endif
     free(corpo);
   }
   SDL_LockMutex(mtx);
   if (tag[0]) {
     const char *v = tag[0] == 'v' ? tag + 1 : tag;
-    if (maisNova(v, NV_VERSAO)) {
+#if defined(NV_TPK)
+    int temAnexo = (lSo[0] != 0 && lSoH[0] != 0);
+#elif defined(NV_ANDROID)
+    int temAnexo = (lApk[0] != 0 && lApkH[0] != 0);
+#elif defined(__EMSCRIPTEN__)
+    int temAnexo = lWgt;
+#else
+    int temAnexo = (!AT_INSTALA) || (lIpk[0] != 0);
+#endif
+    if (maisNova(v, NV_VERSAO) && temAnexo) {
       if (strcmp(v, tagNova) != 0) geracao++;
       snprintf(tagNova, sizeof tagNova, "%s", v);
       limparNotas(body, notas, sizeof notas);
@@ -601,6 +616,9 @@ static int fioConsulta(void *arg) {
       snprintf(apkHash, sizeof apkHash, "%s", lApkH);
       snprintf(apkVer, sizeof apkVer, "%s", v);
 #endif
+    } else if (maisNova(v, NV_VERSAO) && !temAnexo) {
+      printf("[atualizacao] versao %s no GitHub ainda sem arquivo para esta plataforma -- aguardando\n", v);
+      fflush(stdout);
     }
     printf("[atualizacao] instalada %s, no GitHub %s%s (consulta %d)\n", NV_VERSAO, v,
            tagNova[0] ? " -- NOVA" : "", consultas + 1);
