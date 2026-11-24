@@ -472,26 +472,6 @@ const char *menu_rotulo(int d) {
   return (d >= 0 && d < MENU_N) ? ROTULOS[d] : "";
 }
 
-void menu_a11y(char *dst, size_t n) {
-  if (!n) return;
-  dst[0] = 0;
-  if (!aberto) return;
-  if (linha == MENU_RODAPE) {
-    const ContaPerfil *p = perfis_item_ativo();
-    snprintf(dst, n, "Menu, Trocar de perfil, perfil atual %s", p && p->nome[0] ? p->nome : "");
-    return;
-  }
-  if (linha >= MENU_ST0) {
-    int pasta = tvPastaDoFoco(linha);
-    const ColFolder *pf = pasta >= 0 ? col_folder(pasta) : NULL;
-    snprintf(dst, n, "Menu, Streaming, %s", pf && pf->titulo[0] ? pf->titulo : "Pasta");
-    return;
-  }
-  if (linha >= 0 && linha < MENU_N) {
-    snprintf(dst, n, "Menu, %s%s", i18n(ROTULOS[linha]), linha == destino ? ", atual" : "");
-  }
-}
-
 // Confirma o destaque e recolhe. DIREITA tambem passa por aqui: no aparelho a
 // barra nao "cancela" ao sair pela direita — o item destacado e o que o usuario
 // esta olhando, e desfazer a escolha no caminho de volta seria surpresa.
@@ -1661,4 +1641,24 @@ static void topoDesenhar(void) {
     }
   }
   gfx_sem_recorte();
+}
+
+void menu_a11y(char *dst, size_t n) {
+  if (!n) return;
+  dst[0] = 0;
+  if (!aberto) return;
+  if (linha == MENU_RODAPE) {
+    const ContaPerfil *p = perfis_item_ativo();
+    snprintf(dst, n, "Menu, Trocar de perfil, perfil atual %s", p && p->nome[0] ? p->nome : "");
+    return;
+  }
+  if (linha >= MENU_ST0) {
+    int pasta = tvPastaDoFoco(linha);
+    const ColFolder *pf = pasta >= 0 ? col_folder(pasta) : NULL;
+    snprintf(dst, n, "Menu, Streaming, %s", pf && pf->title[0] ? pf->title : "Pasta");
+    return;
+  }
+  if (linha >= 0 && linha < MENU_N) {
+    snprintf(dst, n, "Menu, %s%s", i18n(ROTULOS[linha]), linha == destino ? ", atual" : "");
+  }
 }
