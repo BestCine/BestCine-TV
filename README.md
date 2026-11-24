@@ -32,7 +32,7 @@ Se o seu aparelho usa **Android TV, Google TV ou Fire TV**, baixe pela Central O
 
 👉 **[⬇️ BAIXAR BESTCINE TV PARA ANDROID TV / GOOGLE TV / MI BOX / FIRE TV (bestcine.github.io)](https://bestcine.github.io)**
 
-- A partir da próxima build (`v1.1.6+`), o APK passa a ser **único universal** (`BestCineTV-android-lite-universal.apk`, com ARM 32 e 64 bits juntos) acompanhado de `.sha256` (`sha256sum -c BestCineTV-android-lite-universal.apk.sha256`).
+- **APK único universal (`v1.1.6+`):** `BestCineTV-android-lite-universal.apk` (ARM 32 e 64 bits juntos, assinatura Release oficial) acompanhado de `.sha256` (`sha256sum -c BestCineTV-android-lite-universal.apk.sha256`).
 - **Como instalar:** baixe pelo app **Downloader** (colando o link acima), **Send Files to TV** ou pendrive USB e abra o arquivo.
 - **Como entrar na sua conta:** abra o BestCine TV, aponte a câmera do celular para o **QR Code** na TV e toque em **Autorizar TV** (não precisa digitar senha no controle!).
 
@@ -77,10 +77,10 @@ Se o seu aparelho usa **Android TV, Google TV ou Fire TV**, baixe pela Central O
 ---
 
 ## ✨ O que o BestCine TV tem?
-- 🔐 **Login por QR Code (sem digitar senha na TV):** escaneie com o celular e tudo sincroniza sozinho.
-- 📺 **TV ao Vivo estilo BestCine Windows:** sidebar de categorias à esquerda, **★ Favoritos** (segure OK em qualquer canal), grade de 5 colunas com logos grandes e programação ao vivo real.
-- 👨‍👩‍👧‍👦 **Até 6 perfis na mesma TV:** clique em **Trocar de perfil › `+ Novo perfil`** para cada pessoa da casa ter seu próprio *Continuar assistindo*, *Salvos*, *Favoritos* e *Trakt/Simkl* usando a mesma conta BestCine.
-- 🛡️ **DNS Anti-Bloqueio (Cloudflare DoH 1.1.1.1)** ativado de fábrica (funciona até em LG webOS antigas).
+- 🔐 **Login por QR Code (sem digitar senha na TV):** escaneie com o celular e sincronize suas preferências automaticamente.
+- 🎨 **Interface nativa 60 FPS para controle remoto:** navegação em grade por categorias, **★ Favoritos**, suporte a legendas e desempenho otimizado para TVs antigas e novas.
+- 👨‍👩‍👧‍👦 **Até 6 perfis na mesma TV:** clique em **Trocar de perfil › `+ Novo perfil`** para cada pessoa da casa ter seu próprio *Continuar assistindo*, *Salvos*, *Favoritos* e *Trakt/Simkl* localmente.
+- 🌐 **Suporte a DNS criptografado (DoH):** configurável diretamente em *Ajustes* (com fallback automático para o DNS do sistema).
 - 🇧🇷 **100% Português (BR)** + **Trakt, Simkl, TMDB e Discord** integrados + **Atualização automática** direto pela TV.
 
 ---
@@ -90,4 +90,4 @@ O **BestCine TV** é um fork independente e gratuito distribuído sob a licença
 
 - **Ícones:** [Lucide Icons](https://lucide.dev) (ISC).
 - **Áudio DTS/AC3:** [FFmpeg](https://ffmpeg.org/) (LGPL 2.1+).
-- **Aviso:** projeto independente, sem afiliação com `iqui27`, `NuvioMedia`, LG, Samsung ou Google.
+- **Aviso:** este repositório contém exclusivamente o código-fonte do aplicativo cliente / reprodutor multimídia open-source e não hospeda ou distribui conteúdo de mídia. Projeto independente, sem afiliação com `iqui27`, `NuvioMedia`, LG, Samsung ou Google.
