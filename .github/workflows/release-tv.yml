@@ -401,7 +401,6 @@ jobs:
             exit 1
           fi
 
-          (cd dist-android && sha256sum BestCineTV-android-lite-universal.apk > BestCineTV-android-lite-universal.apk.sha256)
           {
             echo "### Android TV APK"
             echo "- Assinatura: $SIGN_MODE"
