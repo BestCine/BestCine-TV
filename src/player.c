@@ -1010,6 +1010,11 @@ static void erroCausaDoPlayer(void) {
     snprintf(erroDica, sizeof erroDica, "%s", i18n("Feche o Xtream em outro aparelho e tente de novo."));
     return;
   }
+  if (ehCanal()) {
+    snprintf(erroTitulo, sizeof erroTitulo, "%s", i18n("Canal em manutenção ou temporariamente indisponível"));
+    snprintf(erroDica, sizeof erroDica, "%s", i18n("Tente escolher outra fonte ou selecione outro canal na grade."));
+    return;
+  }
   if (causa == FS_CAUSA_NENHUMA) return;
   printf("[fonte] causa do erro: %d http=%d\n", causa, http);
   fflush(stdout);
