@@ -1588,7 +1588,7 @@ void atualizacao_desenhar(Uint32 agora) {
 
   // TITULO 64/800, "Voce esta na" 26 a 60%, e o resumo 24 a 72%.
   y = C.y + AT_PADY + 44.0f + 18.0f;
-  snprintf(buf, sizeof buf, i18n("Nuvio %s"), tagNova);
+  snprintf(buf, sizeof buf, "BestCine TV %s", tagNova);
   { TxtLinha l = txt_linha(TXT_AJ_NUM64, buf, AT_TX, 255);
     txt_desenhar_alpha(l, x - 1.0f, y + (77.0f - (float)l.h) * 0.5f, ca); y += 77.0f; }
   // A VARIANTE NO CARTAO. Sem isto a pessoa le "Você está na 1.1.2" e vai para
