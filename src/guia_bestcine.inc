@@ -36,13 +36,114 @@ static int bcGradeAtiva(void) {
 }
 
 // Programacao real enviada pelo servidor BestCine no campo description
-// ("Agora (12:53-13:45): ..."), ignorando o eco "Canal: <nome>".
+// ("🔴 Agora (12:53–13:45): ..."), ignorando o eco "Canal: <nome>".
 static const char *bcDescProgramacao(const GCanal *c) {
   char eco[200];
   if (!c || !c->desc || !c->desc[0]) return NULL;
   snprintf(eco, sizeof eco, "Canal: %s", c->nome ? c->nome : "");
   if (!strcmp(c->desc, eco)) return NULL;
   return c->desc;
+}
+
+static int bcLerHora2(const char *p, int *hh, int *mm) {
+  if (!p[0] || !p[1] || p[2] != ':' || !p[3] || !p[4]) return 0;
+  if (p[0] < '0' || p[0] > '9' || p[1] < '0' || p[1] > '9' ||
+      p[3] < '0' || p[3] > '9' || p[4] < '0' || p[4] > '9') return 0;
+  *hh = (p[0] - '0') * 10 + (p[1] - '0');
+  *mm = (p[3] - '0') * 10 + (p[4] - '0');
+  return (*hh >= 0 && *hh <= 23 && *mm >= 0 && *mm <= 59);
+}
+
+// Extrai titulo limpo, horarios (HH:MM) e progresso (0.02..1.0) de
+// "Agora (HH:MM–HH:MM): Titulo" usando horario de Brasilia (UTC-3).
+static int bcExtrairEpgBarra(const char *desc, time_t agoraUtc,
+                             char *titDst, size_t titCap,
+                             char *iniDst, size_t iniCap,
+                             char *fimDst, size_t fimCap,
+                             float *progDst) {
+  const char *p, *fimLinha;
+  int sh = 0, sm = 0, eh = 0, em = 0;
+  int iniMin, fimMin, dur, brtMin, dec;
+  long long brtSec;
+  size_t len;
+  float prog;
+  if (!desc || !desc[0] || !titDst || !titCap || !iniDst || !iniCap || !fimDst || !fimCap || !progDst)
+    return 0;
+
+  fimLinha = desc;
+  while (*fimLinha && *fimLinha != '\n' && *fimLinha != '\r') fimLinha++;
+
+  // Procura "agora" (case-insensitive) na primeira linha
+  p = desc;
+  while (p + 5 <= fimLinha) {
+    if ((p[0] == 'a' || p[0] == 'A') &&
+        (p[1] == 'g' || p[1] == 'G') &&
+        (p[2] == 'o' || p[2] == 'O') &&
+        (p[3] == 'r' || p[3] == 'R') &&
+        (p[4] == 'a' || p[4] == 'A')) {
+      p += 5;
+      break;
+    }
+    p++;
+  }
+  if (p + 5 > fimLinha) return 0;
+
+  while (p < fimLinha && *p == ' ') p++;
+  if (p >= fimLinha || *p != '(') return 0;
+  p++;
+  while (p < fimLinha && *p == ' ') p++;
+  if (p + 5 > fimLinha || !bcLerHora2(p, &sh, &sm)) return 0;
+  p += 5;
+  while (p < fimLinha && *p == ' ') p++;
+
+  // Separador: '-' ASCII ou en-dash (E2 80 93) / em-dash (E2 80 94)
+  if (p < fimLinha && *p == '-') {
+    p++;
+  } else if (p + 3 <= fimLinha &&
+             (unsigned char)p[0] == 0xE2 && (unsigned char)p[1] == 0x80 &&
+             ((unsigned char)p[2] == 0x93 || (unsigned char)p[2] == 0x94)) {
+    p += 3;
+  } else {
+    return 0;
+  }
+
+  while (p < fimLinha && *p == ' ') p++;
+  if (p + 5 > fimLinha || !bcLerHora2(p, &eh, &em)) return 0;
+  p += 5;
+  while (p < fimLinha && *p == ' ') p++;
+  if (p >= fimLinha || *p != ')') return 0;
+  p++;
+  while (p < fimLinha && *p == ' ') p++;
+  if (p >= fimLinha || *p != ':') return 0;
+  p++;
+  while (p < fimLinha && *p == ' ') p++;
+  if (p >= fimLinha) return 0;
+
+  len = (size_t)(fimLinha - p);
+  while (len > 0 && (p[len - 1] == ' ' || p[len - 1] == '\t')) len--;
+  if (!len) return 0;
+  if (len >= titCap) len = titCap - 1;
+  memcpy(titDst, p, len);
+  titDst[len] = 0;
+
+  iniMin = sh * 60 + sm;
+  fimMin = eh * 60 + em;
+  dur = (fimMin > iniMin) ? (fimMin - iniMin) : ((1440 - iniMin) + fimMin);
+  if (dur <= 0 || dur > 12 * 60) return 0;
+
+  brtSec = (long long)agoraUtc - 3LL * 3600LL;
+  brtMin = (int)(((brtSec / 60LL) % 1440LL + 1440LL) % 1440LL);
+  dec = (fimMin > iniMin)
+        ? (brtMin - iniMin)
+        : (brtMin >= iniMin ? (brtMin - iniMin) : ((1440 - iniMin) + brtMin));
+  prog = (float)dec / (float)dur;
+  if (prog < 0.02f) prog = 0.02f;
+  if (prog > 1.0f) prog = 1.0f;
+
+  snprintf(iniDst, iniCap, "%02d:%02d", sh, sm);
+  snprintf(fimDst, fimCap, "%02d:%02d", eh, em);
+  *progDst = prog;
+  return 1;
 }
 
 static int bcTotalCats(void) { return 2 + nCats; }
@@ -448,7 +549,7 @@ static void bcGradeDesenhar(float a, Uint32 agora) {
                 foc ? 0.145f : 0.094f,
                 foc ? 0.235f : 0.153f, a);
         // Area superior mais sutil para destaque do logo
-        logoBox = (GfxRect){ x + 12.0f, y + 12.0f, BC_CARD_W - 24.0f, 114.0f };
+        logoBox = (GfxRect){ x + 12.0f, y + 10.0f, BC_CARD_W - 24.0f, 102.0f };
         gfx_cor(logoBox, 12.0f / logoBox.h, 0.043f, 0.063f, 0.106f, 0.72f * a);
 
         // Borda de foco azul vibrante BestCine
@@ -458,7 +559,7 @@ static void bcGradeDesenhar(float a, Uint32 agora) {
           gfx_anel(card, 16.0f / card.h, 1.0f, 1.0f, 1.0f, 1.0f, 0.07f * a);
 
         // Logo grande do canal centralizado
-        guia_logo_desenhar(logoDe(c), c->nome, logoBox, 206.0f, 88.0f, 1.0f, a);
+        guia_logo_desenhar(logoDe(c), c->nome, logoBox, 196.0f, 80.0f, 1.0f, a);
 
         // Estrela de favorito no canto superior direito
         {
@@ -470,23 +571,77 @@ static void bcGradeDesenhar(float a, Uint32 agora) {
         // Nome do canal
         {
           TxtLinha nm = txt_linha_corta(TXT_CAPTION, c->nome, 245, 247, 252, 255, BC_CARD_W - 28.0f);
-          txt_desenhar_alpha(nm, x + 14.0f, y + 136.0f, a);
+          txt_desenhar_alpha(nm, x + 14.0f, y + 119.0f, a);
         }
 
-        // Programacao ao vivo (XMLTV ou descricao BestCine "Agora (HH:MM-HH:MM): ...")
-        epgIdx = epgDo(c);
-        if (epgIdx >= 0 && epg_agora(epgIdx, agoraT - fusoDe(c), &ep))
-          prog = ep.titulo;
-        else
-          prog = bcDescProgramacao(c);
-        if (!prog || !prog[0])
-          prog = (c->cat >= 0 && c->cat < nCats) ? cats[c->cat].nome : "Ao vivo";
-
-        // Pontinho vermelho AO VIVO + texto da programacao
-        gfx_cor((GfxRect){ x + 14.0f, y + 178.0f, 9.0f, 9.0f }, 0.5f, 0.937f, 0.267f, 0.267f, a);
+        // Programacao ao vivo + barra de progresso EPG (XMLTV ou servidor BestCine)
         {
-          TxtLinha pr = txt_linha_corta(TXT_MINI, prog, 165, 180, 202, 255, BC_CARD_W - 42.0f);
-          txt_desenhar_alpha(pr, x + 30.0f, y + 171.0f, a);
+          char titBuf[180], hIni[12], hFim[12];
+          float epgProg = 0.0f;
+          int temBarra = 0;
+
+          epgIdx = epgDo(c);
+          if (epgIdx >= 0 && epg_agora(epgIdx, agoraT - fusoDe(c), &ep) && ep.titulo && ep.titulo[0]) {
+            prog = ep.titulo;
+            if (ep.fim > ep.ini) {
+              fmtHora(ep.ini, hIni, sizeof hIni);
+              fmtHora(ep.fim, hFim, sizeof hFim);
+              epgProg = anim_clamp((float)((agoraT - fusoDe(c)) - ep.ini) / (float)(ep.fim - ep.ini), 0.02f, 1.0f);
+              temBarra = 1;
+            }
+          } else {
+            const char *descBc = bcDescProgramacao(c);
+            if (descBc && bcExtrairEpgBarra(descBc, agoraT, titBuf, sizeof titBuf,
+                                            hIni, sizeof hIni, hFim, sizeof hFim, &epgProg)) {
+              prog = titBuf;
+              temBarra = 1;
+            } else if (descBc) {
+              const char *nl = strpbrk(descBc, "\r\n");
+              if (nl) {
+                size_t k = (size_t)(nl - descBc);
+                if (k >= sizeof titBuf) k = sizeof titBuf - 1;
+                memcpy(titBuf, descBc, k);
+                titBuf[k] = 0;
+                prog = titBuf;
+              } else {
+                prog = descBc;
+              }
+            } else {
+              prog = NULL;
+            }
+          }
+          if (!prog || !prog[0])
+            prog = (c->cat >= 0 && c->cat < nCats) ? cats[c->cat].nome : "Ao vivo";
+
+          if (temBarra) {
+            TxtLinha pr = txt_linha_corta(TXT_MINI, prog, 186, 198, 218, 255, BC_CARD_W - 28.0f);
+            TxtLinha tIni = txt_linha(TXT_MINI, hIni, 148, 163, 184, 255);
+            TxtLinha tFim = txt_linha(TXT_MINI, hFim, 148, 163, 184, 255);
+            float barY = y + 180.0f;
+            float bx = x + 14.0f + (float)tIni.w + 8.0f;
+            float rx = x + BC_CARD_W - 14.0f - (float)tFim.w;
+            float bw = (rx - 8.0f) - bx;
+            float bh = 5.0f;
+            float by = barY + ((float)tIni.h - bh) * 0.5f;
+
+            txt_desenhar_alpha(pr, x + 14.0f, y + 151.0f, a);
+            txt_desenhar_alpha(tIni, x + 14.0f, barY, a);
+            txt_desenhar_alpha(tFim, rx, barY, a);
+            if (bw > 14.0f) {
+              float fw = bw * epgProg;
+              if (fw < bh) fw = bh;
+              if (fw > bw) fw = bw;
+              gfx_cor((GfxRect){ bx, by, bw, bh }, 0.5f, 1.0f, 1.0f, 1.0f, 0.16f * a);
+              gfx_cor((GfxRect){ bx, by, fw, bh }, 0.5f, 0.937f, 0.267f, 0.267f, a);
+            }
+          } else {
+            // Sem horario de EPG: pontinho vermelho AO VIVO + texto limpo
+            gfx_cor((GfxRect){ x + 14.0f, y + 165.0f, 9.0f, 9.0f }, 0.5f, 0.937f, 0.267f, 0.267f, a);
+            {
+              TxtLinha pr = txt_linha_corta(TXT_MINI, prog, 165, 180, 202, 255, BC_CARD_W - 42.0f);
+              txt_desenhar_alpha(pr, x + 30.0f, y + 158.0f, a);
+            }
+          }
         }
       }
     }
