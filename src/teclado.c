@@ -1561,3 +1561,35 @@ static void teDesenhar(Uint32 agora) {
     }
   }
 }
+
+void teclado_a11y(char *dst, size_t cap) {
+  const char *rot = "";
+  char ch[4] = "";
+  if (!cap) return;
+  dst[0] = 0;
+  if (!aberto) return;
+  if (fileira < 0) {
+    if (coluna == TE_B_CAMPO) rot = "Campo de texto";
+    else rot = "Modo de entrada";
+  } else if (ehAtalho(fileira)) {
+    rot = ATALHOS_EMAIL[coluna < nAtalhos ? coluna : 0];
+  } else if (ehCamadas(fileira)) {
+    int kc = teclaCam[coluna < nTeclasCam ? coluna : 0];
+    if (kc == TE_K_CAIXA) rot = caixa == 2 ? "Maiúsculas travadas" : caixa == 1 ? "Maiúscula" : "Minúscula";
+    else if (kc == TE_K_SINAIS) rot = camada ? "Letras" : "Símbolos";
+    else rot = "Espaço";
+  } else if (ehChar(fileira)) {
+    char c = (coluna < colunasDe(fileira)) ? teCaixa(celula[camada][fileira][coluna]) : 0;
+    if (c == ' ') rot = "Espaço";
+    else if (c) { ch[0] = c; ch[1] = 0; rot = ch; }
+  } else {
+    rot = i18n(rotuloExtra(coluna));
+  }
+  if (ehSenha) {
+    snprintf(dst, cap, "Teclado, %s. %d caracteres digitados.", rot, n);
+  } else if (texto[0]) {
+    snprintf(dst, cap, "Teclado, %s. Digitado: %s", rot, texto);
+  } else {
+    snprintf(dst, cap, "Teclado, %s", rot);
+  }
+}

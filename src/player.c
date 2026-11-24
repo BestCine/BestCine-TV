@@ -7434,3 +7434,21 @@ float player_osd_brilho(void) {
                              agora > ultimoInput ? agora - ultimoInput : 0u,
                              tocando);
 }
+
+void player_a11y(char *dst, size_t cap) {
+  const CatItem *c;
+  const char *tit;
+  if (!cap) return;
+  dst[0] = 0;
+  if (!aberto) return;
+  c = item();
+  tit = (c && c->titulo[0]) ? c->titulo : (ehCanal() ? "Canal ao vivo" : "Vídeo");
+  if (visivel) {
+    const char *rot = rotuloBotao(botao);
+    snprintf(dst, cap, "%s, %s. Botão: %s",
+             tit, tocando ? "reproduzindo" : "pausado",
+             rot && rot[0] ? i18n(rot) : "Controles");
+  } else {
+    snprintf(dst, cap, "%s, %s", tit, tocando ? "reproduzindo" : "pausado");
+  }
+}

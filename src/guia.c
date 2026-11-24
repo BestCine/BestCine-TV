@@ -7970,3 +7970,41 @@ void guia_recarregar(int limparLista) {
   epgExtrasMontar(); epg_recarregar();
   recarregarPend = 1; recargaDoPainel = 1; estado = G_PARADO;
 }
+
+void guia_a11y(char *dst, size_t n) {
+  if (!n) return;
+  dst[0] = 0;
+  if (catAberto) {
+    snprintf(dst, n, "Categorias de TV ao vivo: %s, %d de %d",
+             linhaNome(catFoco), catFoco + 1, nLinhas());
+    return;
+  }
+  if (fopAberto) {
+    snprintf(dst, n, "Opções do canal, item %d", fopFoco + 1);
+    return;
+  }
+  if (focoTopo) {
+    const char *rot = topoCol == 0 ? "Buscar canal" : topoCol == 1 ? "Categorias" : "Opções da TV ao vivo";
+    snprintf(dst, n, "TV ao vivo, botão: %s", rot);
+    return;
+  }
+  {
+    GCanal *c = linhaItem(focoLin, focoCol);
+    const char *cat = linhaNome(focoLin);
+    if (c && c->nome && c->nome[0]) {
+      EpgProg ep;
+      memset(&ep, 0, sizeof ep);
+      if (gAgora(c, tFocoAgora(), &ep) && ep.titulo[0]) {
+        snprintf(dst, n, "TV ao vivo, %s: %s%s. Agora: %s",
+                 cat, c->nome, c->fav ? ", favorito" : "", ep.titulo);
+      } else {
+        snprintf(dst, n, "TV ao vivo, %s: %s%s",
+                 cat, c->nome, c->fav ? ", favorito" : "");
+      }
+    } else if (nCanais == 0) {
+      snprintf(dst, n, "TV ao vivo. Carregando canais, aguarde.");
+    } else {
+      snprintf(dst, n, "TV ao vivo, %s", cat);
+    }
+  }
+}

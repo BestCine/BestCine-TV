@@ -12,6 +12,7 @@
 // troca seco. Saiu o estado (horaAnt/horaT) e as duas linhas extras por virada.
 #include "horafmt.h"
 #include "ilha.h"
+#include "a11y.h"
 #include "ilha_voo.h"
 #include "ajustes.h"
 #include "anim.h"
@@ -226,6 +227,10 @@ void ilha_avisar_ex(const IlhaAvisoEx *e) {
   Aviso a;
   int i;
   if (!e || !e->texto || !e->texto[0]) return;
+  if (a11y_ativo() && e->texto[0]) {
+    if (e->tipo == ILHA_ERRO) a11y_falar(e->texto);
+    else a11y_aviso(e->texto);
+  }
   memset(&a, 0, sizeof a);
   // Sem chave, uma propria: dois avisos avulsos nunca se fundem.
   if (e->chave && e->chave[0]) snprintf(a.chave, sizeof a.chave, "%s", e->chave);
@@ -491,6 +496,21 @@ int ilha_retomar_focado(IlhaCartao *c) {
   if (!modalAberto || modalAviso || modalAtividade || modalQual != ILHA_VIVO || modalFoco != 0) return 0;
   if (c) *c = modalC;
   return 1;
+}
+
+void ilha_modal_a11y(char *dst, size_t n) {
+  if (!n) return;
+  dst[0] = 0;
+  if (!modalAberto) return;
+  if (modalAviso) {
+    const char *btn = (modalFoco >= 0 && modalFoco < modalM.nBotoes) ? modalM.botao[modalFoco] : "";
+    snprintf(dst, n, "%s. %s. Botão: %s",
+             modalM.titulo[0] ? modalM.titulo : "Aviso",
+             modalM.texto[0] ? modalM.texto : modalM.linha,
+             btn);
+    return;
+  }
+  snprintf(dst, n, "Aviso: %s", modalC.titulo[0] ? modalC.titulo : "Ação");
 }
 static int nBotoes(void) {
   if (modalAtividade) return 1;

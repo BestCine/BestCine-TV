@@ -1,6 +1,7 @@
 package space.nuvio.nativelegacy
 
 import android.Manifest
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.UiModeManager
 import android.content.Context
 import android.content.ComponentName
@@ -18,6 +19,8 @@ import android.net.NetworkCapabilities
 import android.net.LinkProperties
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
 import android.provider.Settings
@@ -38,6 +41,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
@@ -237,6 +242,106 @@ class NuvioActivity : SDLActivity() {
         mSurface.holder.setFormat(PixelFormat.TRANSLUCENT)
         NvPlayer.iniciar(this, camada)
         NvPlayer.interfaceModo(interfaceMobile)
+        iniciarAcessibilidade()
+    }
+
+    // Acessibilidade nativa: ponte entre o nucleo C (SDL2/OpenGL) e leitores
+    // de tela como Amazon Fire TV VoiceView e Android TV TalkBack.
+    private external fun nativeA11yAtivo(ativo: Boolean)
+    private var a11yMgr: AccessibilityManager? = null
+    private var a11yStateListener: AccessibilityManager.AccessibilityStateChangeListener? = null
+    private var a11yTouchListener: AccessibilityManager.TouchExplorationStateChangeListener? = null
+    private val a11yHandler = Handler(Looper.getMainLooper())
+    private var a11yPendente: Runnable? = null
+    @Volatile private var a11yAtivo = false
+
+    private fun leitorTelaAtivo(am: AccessibilityManager): Boolean {
+        if (!am.isEnabled) return false
+        if (am.isTouchExplorationEnabled) return true
+        return try {
+            am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_SPOKEN).isNotEmpty()
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private fun atualizarAcessibilidade() {
+        val am = a11yMgr ?: return
+        val ativo = leitorTelaAtivo(am)
+        a11yAtivo = ativo
+        try {
+            if (ativo) {
+                mSurface?.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+                if (mSurface?.contentDescription.isNullOrEmpty()) {
+                    mSurface?.contentDescription = "BestCine TV"
+                }
+            }
+        } catch (_: Throwable) {}
+        if (!mBrokenLibraries) {
+            try { nativeA11yAtivo(ativo) } catch (_: UnsatisfiedLinkError) {}
+        }
+    }
+
+    private fun iniciarAcessibilidade() {
+        val am = getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager ?: return
+        a11yMgr = am
+        val sl = AccessibilityManager.AccessibilityStateChangeListener { atualizarAcessibilidade() }
+        val tl = AccessibilityManager.TouchExplorationStateChangeListener { atualizarAcessibilidade() }
+        a11yStateListener = sl
+        a11yTouchListener = tl
+        try { am.addAccessibilityStateChangeListener(sl) } catch (_: Throwable) {}
+        try { am.addTouchExplorationStateChangeListener(tl) } catch (_: Throwable) {}
+        atualizarAcessibilidade()
+    }
+
+    private fun fecharAcessibilidade() {
+        a11yPendente?.let { a11yHandler.removeCallbacks(it) }
+        a11yPendente = null
+        val am = a11yMgr ?: return
+        a11yStateListener?.let { try { am.removeAccessibilityStateChangeListener(it) } catch (_: Throwable) {} }
+        a11yTouchListener?.let { try { am.removeTouchExplorationStateChangeListener(it) } catch (_: Throwable) {} }
+        a11yStateListener = null
+        a11yTouchListener = null
+        a11yMgr = null
+    }
+
+    // Chamado pelo C (android.c) no fio SDL sempre que o foco muda ou surge aviso.
+    @Suppress("DEPRECATION")
+    fun anunciarAcessibilidade(texto: String, interromper: Boolean, atrasoMs: Int) {
+        if (texto.isBlank()) return
+        val acao = Runnable {
+            val am = a11yMgr ?: return@Runnable
+            if (!leitorTelaAtivo(am)) return@Runnable
+            try { mSurface?.contentDescription = texto } catch (_: Throwable) {}
+            if (interromper) {
+                try { am.interrupt() } catch (_: Throwable) {}
+            }
+            val alvo: View? = mLayout ?: mSurface
+            try {
+                if (alvo != null && alvo.isAttachedToWindow) {
+                    alvo.announceForAccessibility(texto)
+                } else {
+                    val ev = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_ANNOUNCEMENT)
+                    ev.className = NuvioActivity::class.java.name
+                    ev.packageName = packageName
+                    ev.contentDescription = texto
+                    ev.text.add(texto)
+                    am.sendAccessibilityEvent(ev)
+                }
+            } catch (_: Throwable) {}
+        }
+        a11yHandler.post {
+            if (interromper) {
+                a11yPendente?.let { a11yHandler.removeCallbacks(it) }
+                a11yPendente = null
+            }
+            if (atrasoMs > 0) {
+                a11yPendente = acao
+                a11yHandler.postDelayed(acao, atrasoMs.toLong())
+            } else {
+                acao.run()
+            }
+        }
     }
 
     // SDL and video fill the window, including the camera cutout edges. Keeping
@@ -733,6 +838,7 @@ class NuvioActivity : SDLActivity() {
         super.onResume()
         aplicarOrientacaoTouch()
         telaCheiaTouch()
+        atualizarAcessibilidade()
         vigia?.frente(true)
     }
 
@@ -758,6 +864,7 @@ class NuvioActivity : SDLActivity() {
     override fun onDestroy() {
         registroDownload.fechar()
         fontImport.fechar()
+        fecharAcessibilidade()
         vigia?.parar()
         fecharRede()
         NvPlayer.encerrar()

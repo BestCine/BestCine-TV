@@ -8282,3 +8282,50 @@ void detail_desenhar(Uint32 agora) {
   TXT_INI(); detail_desenhar_(agora); TXT_FIM();
   gfx_cortar_invisiveis = clip;
 }
+
+void detail_a11y(char *dst, size_t n) {
+  const CatItem *ci = cat_item(idx);
+  const char *tit = (ci && ci->titulo[0]) ? ci->titulo : "Título";
+  if (!n) return;
+  dst[0] = 0;
+  if (nivel == 0) {
+    if (focoAmigos) {
+      snprintf(dst, n, "%s. Botão Atividade de amigos.", tit);
+      return;
+    }
+    int ac = acaoEm(botao);
+    const char *rot = "Botão";
+    switch (ac) {
+      case ACAO_PRIMARIO:  rot = det_rotulo_primario(ci ? ci->progresso : 0, ajustes_cw_concluido()); break;
+      case ACAO_INICIO:    rot = "Assistir do início"; break;
+      case ACAO_LISTA:     rot = (ci && ci->naLista) ? "Na sua lista" : "Adicionar à lista"; break;
+      case ACAO_ASSISTIDO: rot = (ci && cat_visto(ci)) ? "Marcado como assistido" : "Marcar como assistido"; break;
+      case ACAO_FONTES:    rot = "Escolher fonte"; break;
+      case ACAO_LEMBRAR:   rot = "Lembrar-me"; break;
+      case ACAO_RECOMENDAR:rot = "Recomendar"; break;
+      case ACAO_ARTE:      rot = "Trocar arte"; break;
+      case ACAO_TRAILER:   rot = "Assistir trailer"; break;
+      case ACAO_EXPLORAR:  rot = "Explorar parecidos"; break;
+      case ACAO_MAIS:      rot = "Mais opções"; break;
+      default: break;
+    }
+    snprintf(dst, n, "%s%s%s. Botão: %s", tit, (ci && ci->meta[0]) ? ", " : "", ci ? ci->meta : "", i18n(rot));
+    return;
+  }
+  if (foco.fileira == SEC_TEMPORADAS) {
+    int t = temporadaEm(foco.coluna);
+    if (t > 0) snprintf(dst, n, "%s, Temporada %d", tit, t);
+    else snprintf(dst, n, "%s, Especiais", tit);
+    return;
+  }
+  if (foco.fileira == SEC_EPISODIOS) {
+    const CatEp *ep = cat_episodio(idx, epAbsoluto(foco.coluna));
+    if (ep) {
+      snprintf(dst, n, "Temporada %d, Episódio %d: %s%s%s",
+               ep->temporada, ep->episodio, ep->nome,
+               ep->duracao[0] ? ", " : "", ep->duracao);
+      return;
+    }
+  }
+  snprintf(dst, n, "Detalhes de %s", tit);
+}

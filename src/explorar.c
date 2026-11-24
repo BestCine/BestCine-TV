@@ -1531,3 +1531,24 @@ int explorar_pediu_abrir(int *indice) {
   if (indice) *indice = pediuIndice;
   return 1;
 }
+
+void explorar_a11y(char *dst, size_t cap) {
+  if (!cap) return;
+  dst[0] = 0;
+  if (modo == MODO_CLIMAS && clFoco >= 0 && clFoco < climas.n) {
+    snprintf(dst, cap, "Explorar: %s, %d de %d", climas.c[clFoco].nome, clFoco + 1, climas.n);
+    return;
+  }
+  if (modo == MODO_CLIMA && clAberto >= 0 && clAberto < climas.n && caN[caLinha] > 0) {
+    int col = caCol[caLinha];
+    if (col >= 0 && col < caN[caLinha]) {
+      const MapaObra *o = &climas.c[clAberto].itens[caIdx[caLinha][col]];
+      if (o->titulo[0]) {
+        snprintf(dst, cap, "Explorar, %s: %s, %d de %d",
+                 climas.c[clAberto].nome, o->titulo, col + 1, caN[caLinha]);
+        return;
+      }
+    }
+  }
+  snprintf(dst, cap, "Explorar");
+}

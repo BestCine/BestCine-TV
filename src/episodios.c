@@ -1304,3 +1304,23 @@ void episodios_shot_menu(void) {
 // Capturas: o foco numa linha da lista.
 void episodios_shot_foco(int linha) { grupo = 1; foco = linha; }
 #endif
+
+void episodios_a11y(char *dst, size_t cap) {
+  if (!cap) return;
+  dst[0] = 0;
+  if (!aberto) return;
+  if (grupo == 0) {
+    snprintf(dst, cap, "Episódios, Temporada %d", temporada);
+    return;
+  }
+  {
+    const CatEp *e = epLinha(foco);
+    if (e) {
+      snprintf(dst, cap, "Temporada %d, Episódio %d: %s%s%s",
+               e->temporada, e->episodio, e->nome,
+               e->duracao[0] ? ", " : "", e->duracao);
+      return;
+    }
+  }
+  snprintf(dst, cap, "Lista de episódios");
+}

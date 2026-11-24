@@ -2176,3 +2176,32 @@ const char *faixas_legenda_marca(int i) {
   rotuloLegenda(i, &marca);
   return marca;
 }
+
+void faixas_a11y(char *dst, size_t cap) {
+  if (!cap) return;
+  dst[0] = 0;
+  if (!aberta) return;
+  if (coluna == 0) {
+    int idxA = foco[0];
+    const VideoFaixa *f = (idxA >= 0 && idxA < video_n_audio()) ? video_audio(idxA) : NULL;
+    if (f && f->rotulo[0]) {
+      snprintf(dst, cap, "Áudio: %s%s", f->rotulo, idxA == video_audio_atual() ? ", selecionado" : "");
+    } else {
+      snprintf(dst, cap, "Áudio, faixa %d", idxA + 1);
+    }
+    return;
+  }
+  if (coluna == 1) {
+    int idxL = foco[1];
+    if (idxL == 0) {
+      snprintf(dst, cap, "Legendas: Desligada");
+    } else {
+      const char *marca = NULL;
+      int k = legDaLinha(idxL - 1);
+      const char *rot = (k >= 0 && k < video_n_legenda()) ? rotuloLegenda(k, &marca) : NULL;
+      snprintf(dst, cap, "Legenda: %s", rot && rot[0] ? rot : "Faixa externa");
+    }
+    return;
+  }
+  snprintf(dst, cap, "Áudio e legendas, opções");
+}

@@ -1,4 +1,5 @@
 #include "login.h"
+#include "a11y.h"
 #include "iconeapp.h"
 #include "logoapp.h"
 #include "sessao.h"
@@ -463,3 +464,43 @@ void login_desenhar(Uint32 agora) {
 }
 
 int login_concluido(void) { return sessao_logada(); }
+
+void login_a11y(char *dst, size_t n) {
+  SesEstado st = sessao_estado();
+  if (!n) return;
+  dst[0] = 0;
+  if (!nuvem_pronta()) {
+    snprintf(dst, n, "Login BestCine. Servidor não configurado neste pacote.");
+    return;
+  }
+  switch (st) {
+    case SES_PEDINDO:
+      snprintf(dst, n, "Login BestCine. Gerando código de autorização, aguarde.");
+      break;
+    case SES_AGUARDANDO: {
+      const char *cod = sessao_codigo();
+      if (cod && cod[0]) {
+        char sol[160];
+        a11y_soletrar(cod, sol, sizeof sol);
+        snprintf(dst, n,
+                 "Login BestCine. Código de autorização: %s. Abra o painel do BestCine no celular para autorizar esta TV, ou leia o QR Code na tela.",
+                 sol);
+      } else {
+        snprintf(dst, n, "Login BestCine. Aguardando autorização no celular.");
+      }
+      break;
+    }
+    case SES_TROCANDO:
+      snprintf(dst, n, "Autorizado! Carregando catálogos do BestCine.");
+      break;
+    case SES_LOGADO:
+      snprintf(dst, n, "Conectado ao BestCine.");
+      break;
+    default: {
+      const char *msg = sessao_erro();
+      snprintf(dst, n, "%s. Botão: Gerar novo QR Code. Pressione OK para tentar novamente.",
+               msg && msg[0] ? msg : "Não foi possível conectar ao BestCine");
+      break;
+    }
+  }
+}

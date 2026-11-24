@@ -855,6 +855,7 @@ static int iniciarPoliticaFonte(int preferida, int manual) {
 #include "servidores.h"
 #include "partes.h"
 #include "logrede.h"
+#include "a11y.h"
 #include <stdio.h>
 
 static Tela tela = TELA_HOME;
@@ -4861,7 +4862,103 @@ static void recuperarErroFonte(void) {
   }
 }
 
+static void appA11yPasso(void) {
+  static char ultCamada[48];
+  char buf[512];
+  const char *camada = "";
+  const char *tituloTela = NULL;
+  if (!a11y_ativo()) {
+    ultCamada[0] = 0;
+    return;
+  }
+  buf[0] = 0;
+  if (teclado_aberto()) {
+    camada = "teclado";
+    tituloTela = "Teclado na tela";
+    teclado_a11y(buf, sizeof buf);
+  } else if (atualizacao_aberta()) {
+    camada = "atualizacao";
+    tituloTela = "Atualização disponível";
+    atualizacao_a11y(buf, sizeof buf);
+  } else if (ilha_modal_aberto()) {
+    camada = "modal";
+    tituloTela = "Aviso";
+    ilha_modal_a11y(buf, sizeof buf);
+  } else if (menu_aberto()) {
+    camada = "menu";
+    tituloTela = "Menu lateral";
+    menu_a11y(buf, sizeof buf);
+  } else if (stream_folha_aberta()) {
+    camada = "fontes";
+    tituloTela = "Escolher fonte";
+    streams_a11y(buf, sizeof buf);
+  } else if (episodios_aberto()) {
+    camada = "episodios";
+    tituloTela = "Episódios";
+    episodios_a11y(buf, sizeof buf);
+  } else if (faixas_aberta()) {
+    camada = "faixas";
+    tituloTela = "Áudio e legendas";
+    faixas_a11y(buf, sizeof buf);
+  } else {
+    camada = app_tela_nome();
+    switch (tela) {
+      case TELA_LOGIN:
+        tituloTela = "Login BestCine";
+        login_a11y(buf, sizeof buf);
+        break;
+      case TELA_ESCOLHA_PERFIL:
+        tituloTela = "Escolha de perfil";
+        perfilsel_a11y(buf, sizeof buf);
+        break;
+      case TELA_HOME:
+        if (detail_aberto()) {
+          tituloTela = "Detalhes";
+          detail_a11y(buf, sizeof buf);
+        } else {
+          tituloTela = "Início BestCine";
+          home_a11y(buf, sizeof buf);
+        }
+        break;
+      case TELA_GUIA:
+        tituloTela = "TV ao vivo";
+        guia_a11y(buf, sizeof buf);
+        break;
+      case TELA_BUSCA:
+        tituloTela = "Buscar";
+        busca_a11y(buf, sizeof buf);
+        break;
+      case TELA_BIBLIOTECA:
+        tituloTela = "Biblioteca";
+        biblioteca_a11y(buf, sizeof buf);
+        break;
+      case TELA_EXPLORAR:
+        tituloTela = "Explorar";
+        explorar_a11y(buf, sizeof buf);
+        break;
+      case TELA_AJUSTES:
+        tituloTela = "Ajustes";
+        ajustes_a11y(buf, sizeof buf);
+        break;
+      case TELA_PLAYER:
+        tituloTela = "Reprodutor";
+        player_a11y(buf, sizeof buf);
+        break;
+      default:
+        snprintf(buf, sizeof buf, "BestCine TV, %s", camada);
+        break;
+    }
+  }
+  if (strcmp(ultCamada, camada) != 0) {
+    snprintf(ultCamada, sizeof ultCamada, "%s", camada);
+    if (tituloTela && strcmp(camada, "login") != 0) a11y_tela(tituloTela);
+    else a11y_reset_foco();
+  }
+  if (buf[0]) a11y_foco(buf);
+}
+
 void app_atualizar(float dt, Uint32 agora) {
+  appA11yPasso();
   relogioFocoValidar();
   ajustes_fontes_atualizar();
   { static int morno = -1; int ligado = ajustes_retomada_morna();

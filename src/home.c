@@ -8800,3 +8800,32 @@ int home_item_focado(HomeItem *out) {
   out->rect.x *= u; out->rect.y *= u; out->rect.w *= u; out->rect.h *= u;
   return 1;
 }
+
+void home_a11y(char *dst, size_t n) {
+  if (!n) return;
+  dst[0] = 0;
+  if (focoHero) {
+    int hi = heroDesejado >= 0 ? heroDesejado : heroAtual;
+    const CatItem *p = cat_item_exato(hi);
+    if (p && p->titulo[0]) {
+      snprintf(dst, n, "Destaque: %s%s%s. Pressione OK para abrir ou Baixo para ver os catálogos.",
+               p->titulo, p->meta[0] ? ", " : "", p->meta);
+    } else {
+      snprintf(dst, n, "Início BestCine. Carregando catálogos.");
+    }
+    return;
+  }
+  if (foco.fileira >= 0 && foco.fileira < nFileiras) {
+    const Fileira *s = &fileiras[foco.fileira];
+    int idxItem = fileiraItemIndice(s, foco.coluna);
+    const CatItem *p = idxItem >= 0 ? cat_item_exato(idxItem) : NULL;
+    if (p && p->titulo[0]) {
+      snprintf(dst, n, "%s: %s%s%s, item %d de %d",
+               s->titulo[0] ? s->titulo : "Catálogo",
+               p->titulo, p->meta[0] ? ", " : "", p->meta,
+               foco.coluna + 1, s->n);
+    } else if (s->titulo[0]) {
+      snprintf(dst, n, "%s, item %d de %d", s->titulo, foco.coluna + 1, s->n);
+    }
+  }
+}

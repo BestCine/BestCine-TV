@@ -1746,3 +1746,51 @@ void perfilsel_teste_estado(PerfilSelTesteEstado *e) {
 #endif
 
 int perfilsel_concluido(void) { return concluido; }
+
+void perfilsel_a11y(char *dst, size_t n) {
+  int m = perfis_n();
+  int tot = totalSlots();
+  if (!n) return;
+  dst[0] = 0;
+  if (preparando) {
+    snprintf(dst, n, "Preparando o perfil, aguarde.");
+    return;
+  }
+  if (pinDe >= 0) {
+    const ContaPerfil *p = perfis_item(pinDe);
+    const char *tecla = "";
+    char dig[8];
+    if (pinFoco >= 0 && pinFoco < 9) { snprintf(dig, sizeof dig, "%d", pinFoco + 1); tecla = dig; }
+    else if (pinFoco == PS_PIN_ZERO) tecla = "0";
+    else if (pinFoco == PS_PIN_APAGAR) tecla = "Apagar";
+    if (pinErrado) {
+      snprintf(dst, n, "PIN incorreto para %s. Tecla %s, %d de %d dígitos digitados.",
+               p ? p->nome : "perfil", tecla, (int)strlen(pin), PS_PIN_LEN);
+    } else if (verificando) {
+      snprintf(dst, n, "Verificando PIN de %s.", p ? p->nome : "perfil");
+    } else {
+      snprintf(dst, n, "Digite o PIN de %s. Tecla %s, %d de %d dígitos.",
+               p ? p->nome : "perfil", tecla, (int)strlen(pin), PS_PIN_LEN);
+    }
+    return;
+  }
+  if (foco == m && bcPodeAdicionar()) {
+    snprintf(dst, n, "Botão Novo perfil, %d de %d. Pressione OK para criar.", foco + 1, tot);
+    return;
+  }
+  {
+    const ContaPerfil *p = (foco >= 0 && foco < m) ? perfis_item(foco) : NULL;
+    if (!p) {
+      snprintf(dst, n, "Escolha de perfil.");
+      return;
+    }
+    if (focoRemover == 2) {
+      snprintf(dst, n, "Confirmar exclusão do perfil %s? Pressione OK para excluir ou Voltar para cancelar.", p->nome);
+    } else if (focoRemover == 1) {
+      snprintf(dst, n, "Botão Remover perfil %s. Pressione OK para remover ou Cima para voltar.", p->nome);
+    } else {
+      snprintf(dst, n, "Perfil %s%s, %d de %d. Pressione OK para entrar.",
+               p->nome, p->temPin ? ", protegido por PIN" : "", foco + 1, tot);
+    }
+  }
+}

@@ -1793,3 +1793,19 @@ void atualizacao_desenhar(Uint32 agora) {
   gfx_sem_recorte();
 }
 
+void atualizacao_a11y(char *dst, size_t n) {
+  if (!n) return;
+  dst[0] = 0;
+  if (!aberto) return;
+  if (estado == AT_INSTALANDO) {
+    snprintf(dst, n, "Atualizando BestCine TV %s. %s", tagNova, instPasso[0] ? instPasso : "Aguarde");
+    return;
+  }
+  if (podeAgir()) {
+    snprintf(dst, n, "Atualização disponível: BestCine TV %s. Botão: %s",
+             tagNova, foco == 0 ? i18n("Atualizar agora") : i18n("Depois"));
+  } else {
+    snprintf(dst, n, "Atualização disponível: BestCine TV %s. Pressione OK para fechar.", tagNova);
+  }
+}
+

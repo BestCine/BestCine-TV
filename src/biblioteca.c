@@ -2598,3 +2598,25 @@ static void biblioteca_desenhar_(Uint32 agora) {
 void biblioteca_evento(const SDL_Event *e) { TXT_INI(); biblioteca_evento_(e); TXT_FIM(); }
 void biblioteca_atualizar(float dt, Uint32 agora) { TXT_INI(); biblioteca_atualizar_(dt, agora); TXT_FIM(); }
 void biblioteca_desenhar(Uint32 agora) { TXT_INI(); biblioteca_desenhar_(agora); TXT_FIM(); }
+
+void biblioteca_a11y(char *dst, size_t cap) {
+  int nc, idxC;
+  if (!cap) return;
+  dst[0] = 0;
+  nc = colunas();
+  if (nc < 1) nc = 1;
+  idxC = foco.fileira * nc + foco.coluna;
+  if (idxC >= 0 && idxC < nCelulas) {
+    CatItem tmp;
+    const CatItem *ci = estado() == EST_ITENS
+      ? (lst_item(idxC, &tmp) ? &tmp : NULL)
+      : (idxC < nFiltro ? itemFiltro(filtro[idxC], &tmp) : NULL);
+    if (ci && ci->titulo[0]) {
+      snprintf(dst, cap, "Biblioteca: %s%s%s, %d de %d",
+               ci->titulo, ci->meta[0] ? ", " : "", ci->meta,
+               idxC + 1, nCelulas);
+      return;
+    }
+  }
+  snprintf(dst, cap, "Biblioteca, %d itens", nCelulas);
+}

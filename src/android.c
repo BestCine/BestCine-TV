@@ -1,6 +1,7 @@
 // Ponte do nucleo com o Android. Ver android.h.
 #ifdef NV_ANDROID
 #include "android.h"
+#include "a11y.h"
 #include "queda.h"
 #include <SDL2/SDL.h>
 #include <android/log.h>
@@ -646,6 +647,37 @@ JNIEXPORT jstring JNICALL
 Java_space_nuvio_nativelegacy_NuvioActivity_nativeRecUrl(JNIEnv *env, jobject act) {
   (void)act;
   return (*env)->NewStringUTF(env, NV_REC_URL);
+}
+
+// Acessibilidade (VoiceView no Fire TV e TalkBack no Android TV).
+JNIEXPORT void JNICALL
+Java_space_nuvio_nativelegacy_NuvioActivity_nativeA11yAtivo(JNIEnv *env, jobject act, jboolean ativo) {
+  (void)env; (void)act;
+  a11y_definir_ativo(ativo == JNI_TRUE ? 1 : 0);
+}
+
+void android_a11y_anunciar(const char *texto, int interromper, int atrasoMs) {
+  JNIEnv *env = (JNIEnv *)SDL_AndroidGetJNIEnv();
+  jobject act;
+  jclass cls;
+  jstring jtxt = NULL;
+  if (!env || !texto || !texto[0]) return;
+  act = (jobject)SDL_AndroidGetActivity();
+  if (!act) return;
+  cls = (*env)->GetObjectClass(env, act);
+  if (cls) {
+    jmethodID m = (*env)->GetMethodID(env, cls, "anunciarAcessibilidade", "(Ljava/lang/String;ZI)V");
+    if (m) {
+      jtxt = (*env)->NewStringUTF(env, texto);
+      if (jtxt && !(*env)->ExceptionCheck(env)) {
+        (*env)->CallVoidMethod(env, act, m, jtxt, interromper ? JNI_TRUE : JNI_FALSE, (jint)atrasoMs);
+      }
+    }
+    (*env)->DeleteLocalRef(env, cls);
+  }
+  if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+  if (jtxt) (*env)->DeleteLocalRef(env, jtxt);
+  (*env)->DeleteLocalRef(env, act);
 }
 
 #endif

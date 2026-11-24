@@ -69,6 +69,8 @@ char *android_http(const char *verbo, const char *url, const char *cabs,
                    const char *corpo, int prazoMs, int *status, int *retryAfter, long *n,
                    char *erro, size_t nErro);
 void android_quadro(void);
+// Acessibilidade (VoiceView / TalkBack): envia fala para o leitor de tela Android.
+void android_a11y_anunciar(const char *texto, int interromper, int atrasoMs);
 #endif
 #endif
 

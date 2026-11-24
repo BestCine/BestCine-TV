@@ -6300,3 +6300,26 @@ int stream_fit_abrindo(const Stream *s, char *l1, size_t n1, char *l2, size_t n2
   fitLinhasDe(&r, l1, n1, l2, n2);
   return 1;
 }
+
+void streams_a11y(char *dst, size_t cap) {
+  if (!cap) return;
+  dst[0] = 0;
+  if (!aberta) return;
+  if (nOrdem <= 0) {
+    snprintf(dst, cap, "Escolher fonte. Buscando fontes, aguarde.");
+    return;
+  }
+  if (foco >= 0 && foco < nOrdem) {
+    int idxS = ordem[foco];
+    if (idxS >= 0 && idxS < n) {
+      const Stream *s = &lista[idxS];
+      snprintf(dst, cap, "Fonte %d de %d: %s%s%s",
+               foco + 1, nOrdem,
+               s->rotulo[0] ? s->rotulo : "Fonte",
+               s->descricao[0] ? ", " : "",
+               s->descricao);
+      return;
+    }
+  }
+  snprintf(dst, cap, "Escolher fonte, %d disponíveis", nOrdem);
+}

@@ -2040,6 +2040,49 @@ void busca_evento(const SDL_Event *e) { TXT_INI(); busca_evento_(e); TXT_FIM(); 
 void busca_atualizar(float dt, Uint32 agora) { TXT_INI(); busca_atualizar_(dt, agora); TXT_FIM(); }
 void busca_desenhar(Uint32 agora) { TXT_INI(); busca_desenhar_(agora); TXT_FIM(); }
 
+void busca_a11y(char *dst, size_t n) {
+  if (!n) return;
+  dst[0] = 0;
+  if (painel == 0) {
+    const char *rot = "";
+    if (focoKb.fileira < kbFil) {
+      int k = focoKb.fileira * BU_KB_COLS + focoKb.coluna;
+      if (k >= 0 && k < kbN) rot = kbTeclas[k];
+    } else if (focoKb.coluna == 0) rot = "Espaço";
+    else if (focoKb.coluna == 1) rot = "Apagar";
+    else if (focoKb.coluna == 2) rot = "Limpar";
+    else if (focoKb.coluna == 3) rot = pagSim ? "Letras" : "Símbolos";
+    else rot = "Trocar alfabeto";
+    if (consulta[0]) {
+      snprintf(dst, n, "Buscar, tecla %s. Digitado: %s", rot, consulta);
+    } else {
+      snprintf(dst, n, "Buscar, tecla %s", rot);
+    }
+    return;
+  }
+  if (painel == 1 && focoRes.fileira >= 0 && focoRes.fileira < nFil) {
+    int r = focoRes.fileira, c = focoRes.coluna;
+    if (c >= 0 && c < fil[r].n) {
+      if (fil[r].pessoas) {
+        int pi = fil[r].itens[c];
+        const char *pn = (pi >= 0 && pi < nPess) ? pess[pi].nome : "Pessoa";
+        snprintf(dst, n, "Resultado pessoa: %s, %d de %d", pn, c + 1, fil[r].n);
+      } else {
+        const CatItem *ci = cat_item(fil[r].itens[c]);
+        if (ci && ci->titulo[0]) {
+          snprintf(dst, n, "%s: %s%s%s, %d de %d",
+                   fil[r].titulo ? fil[r].titulo : "Resultados",
+                   ci->titulo, ci->meta[0] ? ", " : "", ci->meta,
+                   c + 1, fil[r].n);
+          return;
+        }
+      }
+      return;
+    }
+  }
+  snprintf(dst, n, "Buscar%s%s", consulta[0] ? ": " : "", consulta);
+}
+
 #ifdef NV_BUSCA_TESTE
 // Gancho de teste (tests/busca_debounce.sh): soma dos itens das fileiras de titulos.
 int busca_teste_itens(void) {
