@@ -1361,9 +1361,40 @@ static int bcDohExtrairIp(const char *json, char *ipOut, size_t ipCap) {
   }
   return 0;
 }
+static int bcDohConsultarIp(const char *host, int modo, char *ipOut, size_t ipCap) {
+  void *dc = curl_init();
+  void *hdrs = NULL;
+  BcDohBuf buf;
+  char dohUrl[256];
+  int ok = 0;
+  if (!dc) return 0;
+  memset(&buf, 0, sizeof buf);
+  if (modo == REDE_DNS_GOOGLE)
+    snprintf(dohUrl, sizeof dohUrl, "https://8.8.8.8/resolve?name=%s&type=A", host);
+  else
+    snprintf(dohUrl, sizeof dohUrl, "https://1.1.1.1/dns-query?name=%s&type=A", host);
+  curl_setopt_f(dc, OPT_URL, dohUrl);
+  curl_setopt_f(dc, OPT_WRITEFUNCTION, bcDohReceber);
+  curl_setopt_f(dc, OPT_WRITEDATA, &buf);
+  curl_setopt_f(dc, OPT_TIMEOUT_MS, 2500L);
+  curl_setopt_f(dc, OPT_CONNECTTIMEOUT_MS, 1500L);
+  curl_setopt_f(dc, OPT_NOSIGNAL, 1L);
+  curl_setopt_f(dc, OPT_SSL_VERIFYPEER, 0L);
+  curl_setopt_f(dc, OPT_SSL_VERIFYHOST, 0L);
+  if (discordCa[0]) curl_setopt_f(dc, OPT_CAINFO, discordCa);
+  if (modo == REDE_DNS_CLOUDFLARE && slist_append) {
+    hdrs = slist_append(hdrs, "Accept: application/dns-json");
+    if (hdrs) curl_setopt_f(dc, OPT_HTTPHEADER, hdrs);
+  }
+  if (curl_perform(dc) == 0 && buf.n > 0)
+    ok = bcDohExtrairIp(buf.buf, ipOut, ipCap);
+  if (hdrs && slist_free) slist_free(hdrs);
+  curl_cleanup(dc);
+  return ok;
+}
 static int bcDohResolver(const char *host, int modo, char *ipOut, size_t ipCap) {
   unsigned long agora = redeAgoraMs();
-  int i, livre = -1, velho = 0;
+  int i, livre = -1, velho = 0, ok = 0;
   ipOut[0] = 0;
   pthread_mutex_lock(&bcDohTrava);
   for (i = 0; i < BC_DOH_CACHE_N; i++) {
@@ -1377,81 +1408,44 @@ static int bcDohResolver(const char *host, int modo, char *ipOut, size_t ipCap) 
   pthread_mutex_unlock(&bcDohTrava);
 
   if (!curl_init || !curl_setopt_f || !curl_perform || !curl_cleanup) return 0;
-  {
-    void *dc = curl_init();
-    void *hdrs = NULL;
-    BcDohBuf buf;
-    char dohUrl[256];
-    int ok = 0;
-    if (!dc) return 0;
-    memset(&buf, 0, sizeof buf);
-    if (modo == REDE_DNS_GOOGLE)
-      snprintf(dohUrl, sizeof dohUrl, "https://8.8.8.8/resolve?name=%s&type=A", host);
-    else
-      snprintf(dohUrl, sizeof dohUrl, "https://1.1.1.1/dns-query?name=%s&type=A", host);
-    curl_setopt_f(dc, OPT_URL, dohUrl);
-    curl_setopt_f(dc, OPT_WRITEFUNCTION, bcDohReceber);
-    curl_setopt_f(dc, OPT_WRITEDATA, &buf);
-    curl_setopt_f(dc, OPT_TIMEOUT_MS, 3000L);
-    curl_setopt_f(dc, OPT_CONNECTTIMEOUT_MS, 2000L);
-    curl_setopt_f(dc, OPT_NOSIGNAL, 1L);
-    curl_setopt_f(dc, OPT_SSL_VERIFYPEER, 0L);
-    curl_setopt_f(dc, OPT_SSL_VERIFYHOST, 0L);
-    if (discordCa[0]) curl_setopt_f(dc, OPT_CAINFO, discordCa);
-    if (modo == REDE_DNS_CLOUDFLARE && slist_append) {
-      hdrs = slist_append(hdrs, "Accept: application/dns-json");
-      if (hdrs) curl_setopt_f(dc, OPT_HTTPHEADER, hdrs);
-    }
-    if (curl_perform(dc) == 0 && buf.n > 0)
-      ok = bcDohExtrairIp(buf.buf, ipOut, ipCap);
-    if (hdrs && slist_free) slist_free(hdrs);
-    curl_cleanup(dc);
-
-    agora = redeAgoraMs();
-    pthread_mutex_lock(&bcDohTrava);
-    for (i = 0; i < BC_DOH_CACHE_N; i++) {
-      if (bcDohCache[i].host[0] && bcDohCache[i].modo == modo &&
-          !strcmp(bcDohCache[i].host, host)) { livre = i; break; }
-      if (!bcDohCache[i].host[0] && livre < 0) livre = i;
-      if (bcDohCache[i].expMs < bcDohCache[velho].expMs) velho = i;
-    }
-    if (livre < 0) livre = velho;
-    snprintf(bcDohCache[livre].host, sizeof bcDohCache[livre].host, "%s", host);
-    snprintf(bcDohCache[livre].ip, sizeof bcDohCache[livre].ip, "%s", ok ? ipOut : "");
-    bcDohCache[livre].modo = modo;
-    bcDohCache[livre].expMs = agora + (ok ? 300000UL : 30000UL);
-    pthread_mutex_unlock(&bcDohTrava);
-    return ok;
+  ok = bcDohConsultarIp(host, modo, ipOut, ipCap);
+  // Fallback automatico entre Cloudflare (1.1.1.1) e Google (8.8.8.8):
+  // se um deles falhar ou estiver bloqueado na rede/TV Box, tenta o outro;
+  // se ambos falharem, devolve 0 e o app cai automaticamente no DNS da TV
+  // (nunca trava em "Sem internet").
+  if (!ok) {
+    int alt = (modo == REDE_DNS_GOOGLE) ? REDE_DNS_CLOUDFLARE : REDE_DNS_GOOGLE;
+    ok = bcDohConsultarIp(host, alt, ipOut, ipCap);
   }
+
+  agora = redeAgoraMs();
+  pthread_mutex_lock(&bcDohTrava);
+  for (i = 0; i < BC_DOH_CACHE_N; i++) {
+    if (bcDohCache[i].host[0] && bcDohCache[i].modo == modo &&
+        !strcmp(bcDohCache[i].host, host)) { livre = i; break; }
+    if (!bcDohCache[i].host[0] && livre < 0) livre = i;
+    if (bcDohCache[i].expMs < bcDohCache[velho].expMs) velho = i;
+  }
+  if (livre < 0) livre = velho;
+  snprintf(bcDohCache[livre].host, sizeof bcDohCache[livre].host, "%s", host);
+  snprintf(bcDohCache[livre].ip, sizeof bcDohCache[livre].ip, "%s", ok ? ipOut : "");
+  bcDohCache[livre].modo = modo;
+  bcDohCache[livre].expMs = agora + (ok ? 300000UL : 30000UL);
+  pthread_mutex_unlock(&bcDohTrava);
+  return ok;
 }
 static void bcAplicarDoh(void *c, const char *url) {
   int modo = rede_dns_modo();
   char host[128], ip[48], ent[200];
   int porta = 443;
   if (modo == REDE_DNS_SISTEMA || !bcPrecisaDoh(url, host, sizeof host, &porta)) {
-#ifndef NV_TPK
-    if (curlVersionNum >= 0x073e00) curl_setopt_f(c, OPT_DOH_URL, (const char *)NULL);
-#endif
     curl_setopt_f(c, OPT_RESOLVE, (void *)NULL);
     return;
   }
-#ifndef NV_TPK
-  // Em Tizen (NV_TPK), dnsShare (CURLOPT_SHARE + CURL_LOCK_DATA_DNS) conflita
-  // com CURLOPT_DOH_URL interno da libcurl em requisicoes paralelas no boot
-  // (crash nativo no Tizen 8/9). No Tizen usamos sempre o motor JSON+OPT_RESOLVE
-  // abaixo, mantendo o Anti-Bloqueio (Cloudflare 1.1.1.1 / Google 8.8.8.8) 100% ativo.
-  if (curlVersionNum >= 0x073e00) {
-    const char *doh = modo == REDE_DNS_GOOGLE
-      ? "https://8.8.8.8/dns-query"
-      : "https://1.1.1.1/dns-query";
-    curl_setopt_f(c, OPT_DOH_URL, doh);
-    if (curlVersionNum >= 0x074c00) {
-      curl_setopt_f(c, OPT_DOH_SSL_VERIFYPEER, 0L);
-      curl_setopt_f(c, OPT_DOH_SSL_VERIFYHOST, 0L);
-    }
-    return;
-  }
-#endif
+  // Motor universal JSON DoH + CURLOPT_RESOLVE (Cloudflare 1.1.1.1 <-> Google 8.8.8.8
+  // -> fallback automatico para DNS do sistema): evita tanto o crash de CURLOPT_DOH_URL
+  // + dnsShare no Samsung Tizen 8/9 quanto o falso "Sem internet" em TV Boxes Android
+  // quando 1.1.1.1 falha sem fallback.
   if (slist_append && slist_free && bcDohResolver(host, modo, ip, sizeof ip)) {
     void *antiga, *nova = NULL;
     pthread_once(&bcDohListaUma, bcDohListaCriar);
@@ -2275,11 +2269,7 @@ static int abrirReal(void) {
                   v->age >= 1 && v->ares ? "c-ares/" :
                   (v->features & (1 << 7)) ? "threaded" : "no (synchronous)",
                   v->age >= 1 && v->ares ? v->ares : "",
-#ifdef NV_TPK
-                  "json+resolve (tpk)");
-#else
-                  curlVersionNum >= 0x073e00 ? "native" : "json+resolve");
-#endif
+                  "json+resolve (fallback)");
     else printf("[rede] curl_version_info indisponivel\n");
 #ifdef NV_TPK
     prepararDns(h, v && v->age >= 1 ? v->ares : NULL);
