@@ -312,7 +312,6 @@ class NuvioActivity : SDLActivity() {
         val acao = Runnable {
             val am = a11yMgr ?: return@Runnable
             if (!leitorTelaAtivo(am)) return@Runnable
-            try { mSurface?.contentDescription = texto } catch (_: Throwable) {}
             if (interromper) {
                 try { am.interrupt() } catch (_: Throwable) {}
             }

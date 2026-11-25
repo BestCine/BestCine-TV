@@ -26,8 +26,13 @@ void a11y_aviso(const char *texto);
 void a11y_tela(const char *titulo);
 
 // Limpa o ultimo foco memorizado (ex.: ao fechar modal/overlay para reler o
-// item que ficou focado por baixo).
+// item que ficou focado por baixo) e avanca a geracao de contexto de tela.
 void a11y_reset_foco(void);
+
+// Contador de geracao que avanca a cada troca de tela/camada. Permite que cada
+// tela anuncie o nome da fileira/secao apenas quando o usuario entra nela ou
+// troca de fileira, sem repetir a cada card.
+unsigned a11y_geracao(void);
 
 // Converte um codigo curto ("AB39K2") em forma soletrada ("A, B, 3, 9, K, 2")
 // para leitura clara pelo VoiceView/TalkBack.

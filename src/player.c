@@ -27,6 +27,7 @@
 #include "mediaurl.h"
 #include "horafmt.h"
 #include "player.h"
+#include "a11y.h"
 #include "legfontes.h"
 #include "memlog.h"
 #include "dvtela.h"
@@ -7440,20 +7441,229 @@ float player_osd_brilho(void) {
                              tocando);
 }
 
+static void playerFormatarTempoA11y(double seg, char *dst, size_t cap) {
+  int total, h, m, s;
+  if (!cap) return;
+  dst[0] = 0;
+  if (seg < 0.0) seg = 0.0;
+  total = (int)(seg + 0.5);
+  h = total / 3600;
+  m = (total % 3600) / 60;
+  s = total % 60;
+  if (h > 0) {
+    if (m > 0) snprintf(dst, cap, "%d %s e %d %s", h, h == 1 ? "hora" : "horas", m, m == 1 ? "minuto" : "minutos");
+    else snprintf(dst, cap, "%d %s", h, h == 1 ? "hora" : "horas");
+  } else if (m > 0) {
+    if (s > 0) snprintf(dst, cap, "%d %s e %d %s", m, m == 1 ? "minuto" : "minutos", s, s == 1 ? "segundo" : "segundos");
+    else snprintf(dst, cap, "%d %s", m, m == 1 ? "minuto" : "minutos");
+  } else {
+    snprintf(dst, cap, "%d %s", s, s == 1 ? "segundo" : "segundos");
+  }
+}
+
+static void playerBotaoVodA11y(int bt, char *dst, size_t cap) {
+  switch (bt) {
+    case PLR_PLAY:
+      snprintf(dst, cap, "%s, botão", tocando ? "Pausar, reproduzindo" : "Reproduzir, pausado");
+      break;
+    case PLR_CC:
+      snprintf(dst, cap, "Legendas, botão");
+      break;
+    case PLR_AUDIO:
+      snprintf(dst, cap, "Áudio, botão");
+      break;
+    case PLR_ASPECTO: {
+      const char *m = player_aspecto_rotulo(aspecto);
+      if (m && m[0]) snprintf(dst, cap, "Proporção da tela, %s, botão", i18n(m));
+      else snprintf(dst, cap, "Proporção da tela, botão");
+      break;
+    }
+    case PLR_FONTES:
+      snprintf(dst, cap, "Escolher fonte, botão");
+      break;
+    case PLR_EPISODIOS:
+      snprintf(dst, cap, "%s, botão", epE > 0 ? "Episódios" : "Relacionados");
+      break;
+    case PLR_PROXIMO:
+      snprintf(dst, cap, "Próximo episódio, botão");
+      break;
+    case PLR_REINICIAR:
+      snprintf(dst, cap, "Assistir do começo, botão");
+      break;
+    case PLR_NESTE:
+      snprintf(dst, cap, "Neste episódio, botão");
+      break;
+    default: {
+      const char *rot = rotuloBotao(bt);
+      snprintf(dst, cap, "%s, botão", rot && rot[0] ? i18n(rot) : "Controle");
+      break;
+    }
+  }
+}
+
+static void playerBotaoAvA11y(int idB, char *dst, size_t cap) {
+  switch (idB) {
+    case AV_B_PAUSA:
+      snprintf(dst, cap, "%s, botão", tocando ? "Pausar, reproduzindo" : "Reproduzir, pausado");
+      break;
+    case AV_B_AOVIVO:    snprintf(dst, cap, "Voltar ao vivo, botão"); break;
+    case AV_B_GUIA:      snprintf(dst, cap, "Guia de canais, botão"); break;
+    case AV_B_ANT:       snprintf(dst, cap, "Canal anterior, botão"); break;
+    case AV_B_PROX:      snprintf(dst, cap, "Próximo canal, botão"); break;
+    case AV_B_FAV:
+      snprintf(dst, cap, "%s, botão",
+               guia_e_favorito(player_id_canal()) ? "Remover dos favoritos" : "Adicionar aos favoritos");
+      break;
+    case AV_B_AUDIO:     snprintf(dst, cap, "Áudio, botão"); break;
+    case AV_B_LEGENDA:   snprintf(dst, cap, "Legendas, botão"); break;
+    case AV_B_INFO:      snprintf(dst, cap, "Informações do canal, botão"); break;
+    case AV_B_RECARREGAR:snprintf(dst, cap, "Recarregar canal, botão"); break;
+    case AV_B_FONTE:     snprintf(dst, cap, "Trocar fonte, botão"); break;
+    case AV_B_ULTIMO:    snprintf(dst, cap, "Último canal, botão"); break;
+    case AV_B_ASPECTO: {
+      const char *m = player_aspecto_rotulo(aspecto);
+      if (m && m[0]) snprintf(dst, cap, "Proporção da tela, %s, botão", i18n(m));
+      else snprintf(dst, cap, "Proporção da tela, botão");
+      break;
+    }
+    default:             snprintf(dst, cap, "Controle, botão"); break;
+  }
+}
+
 void player_a11y(char *dst, size_t cap) {
+  static unsigned ultGer;
+  static int ultBarraFoco;
+  static double barraSnapPos;
+  static int barraSnapPct;
+  static int anunciouTitulo;
+  static int ultTocando = -1;
+  static int ultVisivel = -1;
+  static char ultTit[160];
+  unsigned ger;
   const CatItem *c;
   const char *tit;
   if (!cap) return;
   dst[0] = 0;
   if (!aberto) return;
+
+  ger = a11y_geracao();
   c = item();
   tit = (c && c->titulo[0]) ? c->titulo : (ehCanal() ? "Canal ao vivo" : "Vídeo");
-  if (visivel) {
-    const char *rot = rotuloBotao(botao);
-    snprintf(dst, cap, "%s, %s. Botão: %s",
-             tit, tocando ? "reproduzindo" : "pausado",
-             rot && rot[0] ? i18n(rot) : "Controles");
-  } else {
-    snprintf(dst, cap, "%s, %s", tit, tocando ? "reproduzindo" : "pausado");
+
+  if (ger != ultGer || strcmp(ultTit, tit) != 0) {
+    ultGer = ger;
+    snprintf(ultTit, sizeof ultTit, "%s", tit);
+    ultBarraFoco = 0;
+    barraSnapPos = -1.0;
+    barraSnapPct = -1;
+    anunciouTitulo = 0;
+    ultTocando = -1;
+    ultVisivel = -1;
   }
+
+  // 1. Cartao de erro (VOD ou TV ao vivo)
+  if (erroFonte || video_falhou()) {
+    const char *msg = erroTitulo[0] ? erroTitulo
+                      : (ehCanal() ? "Canal indisponível no momento" : "Não foi possível reproduzir esta fonte");
+    if (ehCanal()) {
+      const char *btn = avErroFoco == 0 ? "Recarregar canal"
+                      : avErroFoco == 1 ? "Trocar fonte" : "Guia de canais";
+      snprintf(dst, cap, "%s. %s, botão", msg, btn);
+    } else {
+      const char *btn = erroBotao == 0 ? "Escolher outra fonte" : "Voltar";
+      snprintf(dst, cap, "%s. %s, botão", msg, btn);
+    }
+    return;
+  }
+
+  // 2. Carregando fonte / abrindo video
+  if (esperandoFonte || player_carregando()) {
+    snprintf(dst, cap, "%s, carregando", tit);
+    anunciouTitulo = 1;
+    return;
+  }
+
+  // 3. Painel de proximo episodio (pos-reproducao)
+  if (posplay_visivel()) {
+    snprintf(dst, cap, "Próximo episódio disponível. Pressione OK para assistir ou Baixo para controles.");
+    return;
+  }
+
+  // 4. Botao de pular abertura / resumo
+  if (skipFoco) {
+    snprintf(dst, cap, "Pular abertura, botão");
+    ultBarraFoco = 0;
+    return;
+  }
+
+  // 5. Barra de progresso / busca (VOD)
+  if (!ehCanal() && (scrubbing || (visivel && barraFoco))) {
+    double dur = (duracaoReal && duracaoSeg > 1.0f) ? (double)duracaoSeg : 0.0;
+    char tPos[64], tDur[64];
+    if (scrubbing) {
+      double p = posSeg < 0.0f ? 0.0 : (double)posSeg;
+      int pct = dur > 0.0 ? (int)((p / dur) * 100.0 + 0.5) : 0;
+      if (pct > 100) pct = 100;
+      playerFormatarTempoA11y(p, tPos, sizeof tPos);
+      if (dur > 0.0) {
+        playerFormatarTempoA11y(dur, tDur, sizeof tDur);
+        snprintf(dst, cap, "%s de %s, %d por cento", tPos, tDur, pct);
+      } else {
+        snprintf(dst, cap, "%s", tPos);
+      }
+      ultBarraFoco = 2;
+      return;
+    }
+    // Focou a barra sem estar arrastando: tira foto do tempo apenas ao entrar na barra
+    // para evitar anuncios repetitivos a cada segundo.
+    if (ultBarraFoco != 1) {
+      barraSnapPos = posSeg < 0.0f ? 0.0 : (double)posSeg;
+      barraSnapPct = dur > 0.0 ? (int)((barraSnapPos / dur) * 100.0 + 0.5) : 0;
+      if (barraSnapPct > 100) barraSnapPct = 100;
+      ultBarraFoco = 1;
+    }
+    playerFormatarTempoA11y(barraSnapPos, tPos, sizeof tPos);
+    if (dur > 0.0) {
+      playerFormatarTempoA11y(dur, tDur, sizeof tDur);
+      snprintf(dst, cap, "Barra de progresso, %s de %s, %d por cento", tPos, tDur, barraSnapPct);
+    } else {
+      snprintf(dst, cap, "Barra de progresso, %s", tPos);
+    }
+    return;
+  }
+  ultBarraFoco = 0;
+
+  // 6. Controles visiveis (TV ao vivo ou VOD)
+  if (visivel) {
+    char btnBuf[160];
+    if (ehCanal()) {
+      int ids[AV_B_N];
+      int n = avBotoes(ids);
+      int idxB = (botaoAV >= 0 && botaoAV < n) ? botaoAV : 0;
+      if (n > 0) playerBotaoAvA11y(ids[idxB], btnBuf, sizeof btnBuf);
+      else snprintf(btnBuf, sizeof btnBuf, "Controles");
+    } else {
+      playerBotaoVodA11y(botao, btnBuf, sizeof btnBuf);
+    }
+    if (!anunciouTitulo) {
+      snprintf(dst, cap, "%s. %s", tit, btnBuf);
+      anunciouTitulo = 1;
+    } else {
+      snprintf(dst, cap, "%s", btnBuf);
+    }
+    ultTocando = tocando;
+    ultVisivel = 1;
+    return;
+  }
+
+  // 7. Controles ocultos: anuncia apenas entrada no video ou troca de pausado/reproduzindo
+  if (!anunciouTitulo) {
+    if (ehCanal()) snprintf(dst, cap, "%s, ao vivo, %s", tit, tocando ? "reproduzindo" : "pausado");
+    else snprintf(dst, cap, "%s, %s", tit, tocando ? "reproduzindo" : "pausado");
+    anunciouTitulo = 1;
+  } else if (ultTocando != -1 && ultTocando != tocando) {
+    snprintf(dst, cap, "%s", tocando ? "Reproduzindo" : "Pausado");
+  }
+  ultTocando = tocando;
+  ultVisivel = 0;
 }

@@ -4865,8 +4865,10 @@ static void recuperarErroFonte(void) {
 static void appA11yPasso(void) {
   static char ultCamada[48];
   char buf[512];
+  char saida[600];
   const char *camada = "";
   const char *tituloTela = NULL;
+  int trocou = 0;
   if (!a11y_ativo()) {
     ultCamada[0] = 0;
     return;
@@ -4874,87 +4876,107 @@ static void appA11yPasso(void) {
   buf[0] = 0;
   if (teclado_aberto()) {
     camada = "teclado";
-    tituloTela = "Teclado na tela";
-    teclado_a11y(buf, sizeof buf);
+    tituloTela = "Teclado";
   } else if (atualizacao_aberta()) {
     camada = "atualizacao";
     tituloTela = "Atualização disponível";
-    atualizacao_a11y(buf, sizeof buf);
   } else if (ilha_modal_aberto()) {
     camada = "modal";
-    tituloTela = "Aviso";
-    ilha_modal_a11y(buf, sizeof buf);
+    tituloTela = NULL;
   } else if (menu_aberto()) {
     camada = "menu";
-    tituloTela = "Menu lateral";
-    menu_a11y(buf, sizeof buf);
+    tituloTela = "Menu";
   } else if (stream_folha_aberta()) {
     camada = "fontes";
     tituloTela = "Escolher fonte";
-    streams_a11y(buf, sizeof buf);
   } else if (episodios_aberto()) {
     camada = "episodios";
     tituloTela = "Episódios";
-    episodios_a11y(buf, sizeof buf);
   } else if (faixas_aberta()) {
     camada = "faixas";
     tituloTela = "Áudio e legendas";
-    faixas_a11y(buf, sizeof buf);
+  } else if (player_aberto()) {
+    if (guia_overlay_aberta()) {
+      camada = "guia-overlay";
+      tituloTela = "Guia de canais";
+    } else {
+      camada = "player";
+      tituloTela = NULL;
+    }
   } else {
     camada = app_tela_nome();
     switch (tela) {
-      case TELA_LOGIN:
-        tituloTela = "Login BestCine";
-        login_a11y(buf, sizeof buf);
-        break;
-      case TELA_ESCOLHA_PERFIL:
-        tituloTela = "Escolha de perfil";
-        perfilsel_a11y(buf, sizeof buf);
-        break;
+      case TELA_LOGIN:          tituloTela = NULL; break;
+      case TELA_ESCOLHA_PERFIL: tituloTela = "Perfis"; break;
       case TELA_HOME:
-        if (detail_aberto()) {
-          tituloTela = "Detalhes";
-          detail_a11y(buf, sizeof buf);
-        } else {
-          tituloTela = "Início BestCine";
-          home_a11y(buf, sizeof buf);
-        }
+        if (detail_aberto()) { camada = "detalhes"; tituloTela = NULL; }
+        else { tituloTela = "Início"; }
         break;
-      case TELA_GUIA:
-        tituloTela = "TV ao vivo";
-        guia_a11y(buf, sizeof buf);
-        break;
-      case TELA_BUSCA:
-        tituloTela = "Buscar";
-        busca_a11y(buf, sizeof buf);
-        break;
-      case TELA_BIBLIOTECA:
-        tituloTela = "Biblioteca";
-        biblioteca_a11y(buf, sizeof buf);
-        break;
-      case TELA_EXPLORAR:
-        tituloTela = "Explorar";
-        explorar_a11y(buf, sizeof buf);
-        break;
-      case TELA_AJUSTES:
-        tituloTela = "Ajustes";
-        ajustes_a11y(buf, sizeof buf);
-        break;
-      case TELA_PLAYER:
-        tituloTela = "Reprodutor";
-        player_a11y(buf, sizeof buf);
-        break;
+      case TELA_GUIA:           tituloTela = "TV ao vivo"; break;
+      case TELA_BUSCA:          tituloTela = "Buscar"; break;
+      case TELA_BIBLIOTECA:     tituloTela = "Biblioteca"; break;
+      case TELA_EXPLORAR:       tituloTela = "Explorar"; break;
+      case TELA_AJUSTES:        tituloTela = "Ajustes"; break;
+      case TELA_PLAYER:         camada = "player"; tituloTela = NULL; break;
+      default:                  tituloTela = NULL; break;
+    }
+  }
+
+  if (strcmp(ultCamada, camada) != 0) {
+    snprintf(ultCamada, sizeof ultCamada, "%s", camada);
+    a11y_reset_foco();
+    trocou = 1;
+  }
+
+  if (!strcmp(camada, "teclado")) {
+    teclado_a11y(buf, sizeof buf);
+  } else if (!strcmp(camada, "atualizacao")) {
+    atualizacao_a11y(buf, sizeof buf);
+  } else if (!strcmp(camada, "modal")) {
+    ilha_modal_a11y(buf, sizeof buf);
+  } else if (!strcmp(camada, "menu")) {
+    menu_a11y(buf, sizeof buf);
+  } else if (!strcmp(camada, "fontes")) {
+    streams_a11y(buf, sizeof buf);
+  } else if (!strcmp(camada, "episodios")) {
+    episodios_a11y(buf, sizeof buf);
+  } else if (!strcmp(camada, "faixas")) {
+    faixas_a11y(buf, sizeof buf);
+  } else if (!strcmp(camada, "guia-overlay")) {
+    guia_a11y(buf, sizeof buf);
+  } else if (!strcmp(camada, "player")) {
+    player_a11y(buf, sizeof buf);
+  } else if (!strcmp(camada, "detalhes")) {
+    detail_a11y(buf, sizeof buf);
+  } else {
+    switch (tela) {
+      case TELA_LOGIN:          login_a11y(buf, sizeof buf); break;
+      case TELA_ESCOLHA_PERFIL: perfilsel_a11y(buf, sizeof buf); break;
+      case TELA_HOME:           home_a11y(buf, sizeof buf); break;
+      case TELA_GUIA:           guia_a11y(buf, sizeof buf); break;
+      case TELA_BUSCA:          busca_a11y(buf, sizeof buf); break;
+      case TELA_BIBLIOTECA:     biblioteca_a11y(buf, sizeof buf); break;
+      case TELA_EXPLORAR:       explorar_a11y(buf, sizeof buf); break;
+      case TELA_AJUSTES:        ajustes_a11y(buf, sizeof buf); break;
       default:
-        snprintf(buf, sizeof buf, "BestCine TV, %s", camada);
+        snprintf(buf, sizeof buf, "BestCine TV");
         break;
     }
   }
-  if (strcmp(ultCamada, camada) != 0) {
-    snprintf(ultCamada, sizeof ultCamada, "%s", camada);
-    if (tituloTela && strcmp(camada, "login") != 0) a11y_tela(tituloTela);
-    else a11y_reset_foco();
+
+  if (trocou && tituloTela && tituloTela[0]) {
+    size_t tl = strlen(tituloTela);
+    if (!buf[0]) {
+      snprintf(saida, sizeof saida, "%s", tituloTela);
+    } else if (strncmp(buf, tituloTela, tl) == 0) {
+      snprintf(saida, sizeof saida, "%s", buf);
+    } else {
+      snprintf(saida, sizeof saida, "%s. %s", tituloTela, buf);
+    }
+    a11y_foco(saida);
+  } else if (buf[0]) {
+    a11y_foco(buf);
   }
-  if (buf[0]) a11y_foco(buf);
 }
 
 void app_atualizar(float dt, Uint32 agora) {

@@ -3,6 +3,7 @@
 // hero no topo, rail fixa à esquerda e fileiras horizontais de posters. A
 // infraestrutura nativa cuida de cache assíncrono, foco e transições.
 #include "home.h"
+#include "a11y.h"
 #include "memlog.h"
 #include "perfis.h"
 #include "botoes.h"
@@ -8802,16 +8803,29 @@ int home_item_focado(HomeItem *out) {
 }
 
 void home_a11y(char *dst, size_t n) {
+  static unsigned ultGer;
+  static int ultFileira = -999;
+  unsigned ger;
   if (!n) return;
   dst[0] = 0;
+  ger = a11y_geracao();
+  if (ger != ultGer) {
+    ultGer = ger;
+    ultFileira = -999;
+  }
   if (focoHero) {
     int hi = heroDesejado >= 0 ? heroDesejado : heroAtual;
     const CatItem *p = cat_item_exato(hi);
+    int mudou = (ultFileira != -1);
+    ultFileira = -1;
     if (p && p->titulo[0]) {
-      snprintf(dst, n, "Destaque: %s%s%s. Pressione OK para abrir ou Baixo para ver os catálogos.",
-               p->titulo, p->meta[0] ? ", " : "", p->meta);
+      if (mudou) {
+        snprintf(dst, n, "Destaque. %s%s%s", p->titulo, p->meta[0] ? ", " : "", p->meta);
+      } else {
+        snprintf(dst, n, "%s%s%s", p->titulo, p->meta[0] ? ", " : "", p->meta);
+      }
     } else {
-      snprintf(dst, n, "Início BestCine. Carregando catálogos.");
+      snprintf(dst, n, "Carregando catálogos");
     }
     return;
   }
@@ -8819,13 +8833,23 @@ void home_a11y(char *dst, size_t n) {
     const Fileira *s = &fileiras[foco.fileira];
     int idxItem = fileiraItemIndice(s, foco.coluna);
     const CatItem *p = idxItem >= 0 ? cat_item_exato(idxItem) : NULL;
+    int mudouRow = (ultFileira != foco.fileira);
+    ultFileira = foco.fileira;
     if (p && p->titulo[0]) {
-      snprintf(dst, n, "%s: %s%s%s, item %d de %d",
-               s->titulo[0] ? s->titulo : "Catálogo",
-               p->titulo, p->meta[0] ? ", " : "", p->meta,
-               foco.coluna + 1, s->n);
-    } else if (s->titulo[0]) {
-      snprintf(dst, n, "%s, item %d de %d", s->titulo, foco.coluna + 1, s->n);
+      if (mudouRow && s->titulo[0]) {
+        snprintf(dst, n, "%s. %s%s%s, %d de %d",
+                 s->titulo,
+                 p->titulo, p->meta[0] ? ", " : "", p->meta,
+                 foco.coluna + 1, s->n);
+      } else {
+        snprintf(dst, n, "%s%s%s, %d de %d",
+                 p->titulo, p->meta[0] ? ", " : "", p->meta,
+                 foco.coluna + 1, s->n);
+      }
+    } else if (mudouRow && s->titulo[0]) {
+      snprintf(dst, n, "%s, %d de %d", s->titulo, foco.coluna + 1, s->n);
+    } else {
+      snprintf(dst, n, "Item %d de %d", foco.coluna + 1, s->n);
     }
   }
 }

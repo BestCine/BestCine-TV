@@ -28,6 +28,7 @@
 // no maximo 5+6 toques e ~5 em media.
 #include "menu.h"
 #include "busca.h"
+#include "a11y.h"
 #include "posterprov.h"
 #include "idioma.h"
 #include "gfx.h"
@@ -2041,10 +2042,28 @@ void busca_atualizar(float dt, Uint32 agora) { TXT_INI(); busca_atualizar_(dt, a
 void busca_desenhar(Uint32 agora) { TXT_INI(); busca_desenhar_(agora); TXT_FIM(); }
 
 void busca_a11y(char *dst, size_t n) {
+  static unsigned ultGer;
+  static int ultPainel = -1;
+  static int ultRow = -1;
+  static char ultConsulta[128];
+  unsigned ger;
+  int mudouConsulta = 0;
   if (!n) return;
   dst[0] = 0;
+  ger = a11y_geracao();
+  if (ger != ultGer) {
+    ultGer = ger;
+    ultPainel = -1;
+    ultRow = -1;
+    snprintf(ultConsulta, sizeof ultConsulta, "%s", consulta);
+  } else if (strcmp(ultConsulta, consulta) != 0) {
+    snprintf(ultConsulta, sizeof ultConsulta, "%s", consulta);
+    mudouConsulta = 1;
+  }
   if (painel == 0) {
     const char *rot = "";
+    ultPainel = 0;
+    ultRow = -1;
     if (focoKb.fileira < kbFil) {
       int k = focoKb.fileira * BU_KB_COLS + focoKb.coluna;
       if (k >= 0 && k < kbN) rot = kbTeclas[k];
@@ -2053,34 +2072,45 @@ void busca_a11y(char *dst, size_t n) {
     else if (focoKb.coluna == 2) rot = "Limpar";
     else if (focoKb.coluna == 3) rot = pagSim ? "Letras" : "Símbolos";
     else rot = "Trocar alfabeto";
-    if (consulta[0]) {
-      snprintf(dst, n, "Buscar, tecla %s. Digitado: %s", rot, consulta);
+    if (mudouConsulta) {
+      if (consulta[0]) snprintf(dst, n, "Digitado: %s. %s", consulta, rot);
+      else snprintf(dst, n, "Busca limpa. %s", rot);
     } else {
-      snprintf(dst, n, "Buscar, tecla %s", rot);
+      snprintf(dst, n, "%s", rot);
     }
     return;
   }
   if (painel == 1 && focoRes.fileira >= 0 && focoRes.fileira < nFil) {
     int r = focoRes.fileira, c = focoRes.coluna;
+    int mudouRow = (ultPainel != 1 || ultRow != r);
+    ultPainel = 1;
+    ultRow = r;
     if (c >= 0 && c < fil[r].n) {
       if (fil[r].pessoas) {
         int pi = fil[r].itens[c];
         const char *pn = (pi >= 0 && pi < nPess) ? pess[pi].nome : "Pessoa";
-        snprintf(dst, n, "Resultado pessoa: %s, %d de %d", pn, c + 1, fil[r].n);
+        if (mudouRow) snprintf(dst, n, "Pessoas. %s, %d de %d", pn, c + 1, fil[r].n);
+        else snprintf(dst, n, "%s, %d de %d", pn, c + 1, fil[r].n);
       } else {
         const CatItem *ci = cat_item(fil[r].itens[c]);
         if (ci && ci->titulo[0]) {
-          snprintf(dst, n, "%s: %s%s%s, %d de %d",
-                   fil[r].titulo ? fil[r].titulo : "Resultados",
-                   ci->titulo, ci->meta[0] ? ", " : "", ci->meta,
-                   c + 1, fil[r].n);
+          const char *ft = (fil[r].titulo && fil[r].titulo[0]) ? fil[r].titulo : "Resultados";
+          if (mudouRow) {
+            snprintf(dst, n, "%s. %s%s%s, %d de %d",
+                     ft, ci->titulo, ci->meta[0] ? ", " : "", ci->meta,
+                     c + 1, fil[r].n);
+          } else {
+            snprintf(dst, n, "%s%s%s, %d de %d",
+                     ci->titulo, ci->meta[0] ? ", " : "", ci->meta,
+                     c + 1, fil[r].n);
+          }
           return;
         }
       }
       return;
     }
   }
-  snprintf(dst, n, "Buscar%s%s", consulta[0] ? ": " : "", consulta);
+  snprintf(dst, n, "Buscar%s%s", consulta[0] ? ", " : "", consulta);
 }
 
 #ifdef NV_BUSCA_TESTE

@@ -1,5 +1,6 @@
 // Ver teclado.h para por que esta modal existe e o que ela NAO tenta ser.
 #include "teclado.h"
+#include "a11y.h"
 #define NV_TXT_TELA
 #include "escala.h"
 #include "gfx.h"
@@ -1563,11 +1564,26 @@ static void teDesenhar(Uint32 agora) {
 }
 
 void teclado_a11y(char *dst, size_t cap) {
+  static unsigned ultGer;
+  static char ultTexto[TECLADO_MAX + 1];
+  static int ultLen = -1;
+  unsigned ger;
   const char *rot = "";
   char ch[4] = "";
+  int textoMudou = 0;
   if (!cap) return;
   dst[0] = 0;
   if (!aberto) return;
+  ger = a11y_geracao();
+  if (ger != ultGer) {
+    ultGer = ger;
+    snprintf(ultTexto, sizeof ultTexto, "%s", texto);
+    ultLen = n;
+  } else if (ehSenha ? (n != ultLen) : (strcmp(ultTexto, texto) != 0)) {
+    snprintf(ultTexto, sizeof ultTexto, "%s", texto);
+    ultLen = n;
+    textoMudou = 1;
+  }
   if (fileira < 0) {
     if (coluna == TE_B_CAMPO) rot = "Campo de texto";
     else rot = "Modo de entrada";
@@ -1585,11 +1601,11 @@ void teclado_a11y(char *dst, size_t cap) {
   } else {
     rot = i18n(rotuloExtra(coluna));
   }
-  if (ehSenha) {
-    snprintf(dst, cap, "Teclado, %s. %d caracteres digitados.", rot, n);
-  } else if (texto[0]) {
-    snprintf(dst, cap, "Teclado, %s. Digitado: %s", rot, texto);
+  if (textoMudou) {
+    if (ehSenha) snprintf(dst, cap, "%d caracteres. %s", n, rot);
+    else if (texto[0]) snprintf(dst, cap, "Digitado: %s. %s", texto, rot);
+    else snprintf(dst, cap, "Texto apagado. %s", rot);
   } else {
-    snprintf(dst, cap, "Teclado, %s", rot);
+    snprintf(dst, cap, "%s", rot);
   }
 }

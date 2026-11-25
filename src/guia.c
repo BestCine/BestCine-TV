@@ -41,6 +41,7 @@
 // nunca tocam no staging — mesma disciplina do epg.c.
 #include "horafmt.h"
 #include "guia.h"
+#include "a11y.h"
 #include "idcanal.h"
 #include "registro.h"
 #include "guiaaddons.h"
@@ -1129,8 +1130,11 @@ static int linhaN(int l) {
 static const char *linhaNome(int l) {
   static char buf[200];
   int c;
+  if (l < 0 || l >= nLinhas()) return "";
   if (linhaEhFav(l)) return i18n("Favoritos");
+  if (!vis || !cats) return "";
   c = linhaCatDe(l);
+  if (c < 0 || c >= nCats) return "";
   if (filtro == G_FILTRO_TODAS && nLtvF > 1 && cats[c].fonte >= 0 && cats[c].fonte < nLtvF) {
     snprintf(buf, sizeof buf, "%s  \xc2\xb7  %s", i18n(cats[c].nome), ltvF[cats[c].fonte].nome);
     return buf;
@@ -7971,40 +7975,204 @@ void guia_recarregar(int limparLista) {
   recarregarPend = 1; recargaDoPainel = 1; estado = G_PARADO;
 }
 
+static void guiaExtrairAgoraA11y(GCanal *c, char *dst, size_t cap) {
+  if (!cap) return;
+  dst[0] = 0;
+  if (!c) return;
+  {
+    const char *desc = bcDescProgramacao(c);
+    if (desc && desc[0]) {
+      char tit[160], ini[16], fim[16];
+      float prog = 0.0f;
+      if (bcExtrairEpgBarra(desc, time(NULL), tit, sizeof tit, ini, sizeof ini, fim, sizeof fim, &prog) && tit[0]) {
+        snprintf(dst, cap, "%s", tit);
+        return;
+      }
+      snprintf(dst, cap, "%s", desc);
+      return;
+    }
+  }
+  {
+    EpgProg ep;
+    memset(&ep, 0, sizeof ep);
+    if (gAgora(c, tFocoAgora(), &ep) && ep.titulo[0]) {
+      snprintf(dst, cap, "%s", ep.titulo);
+    }
+  }
+}
+
 void guia_a11y(char *dst, size_t n) {
+  static unsigned ultGer;
+  static int ultZona = -1;
+  static int ultCat = -1;
+  static int ultLin = -1;
+  unsigned ger;
   if (!n) return;
   dst[0] = 0;
+  ger = a11y_geracao();
+  if (ger != ultGer) {
+    ultGer = ger;
+    ultZona = -1;
+    ultCat = -1;
+    ultLin = -1;
+  }
+
+  // Modais / sobreposicoes do guia (sempre seguros mesmo sem canais)
+  if (limparConfirm) {
+    snprintf(dst, n, "Confirmar limpar lista de canais. %s, botão",
+             limparFoco == 0 ? "Limpar" : "Cancelar");
+    return;
+  }
+  if (opcoesAberto) {
+    const char *rot = opcoesFoco == G_TOPO_ADDONS ? "Fontes de TV"
+                    : opcoesFoco == G_TOPO_FILTROS ? "Filtros"
+                    : opcoesFoco == G_TOPO_DIAG ? "Diagnóstico"
+                    : opcoesFoco == G_TOPO_LIMPAR ? "Limpar lista"
+                    : opcoesFoco == G_TOPO_PREVIEW ? (previewLigado ? "Prévia de vídeo, ligada" : "Prévia de vídeo, desligada")
+                    : "Opção";
+    snprintf(dst, n, "%s, botão", rot);
+    return;
+  }
+  if (buscaEstado == 2) {
+    if (buscaFoco >= 0 && buscaFoco < buscaNC && canais) {
+      int ci = buscaCanal[buscaFoco];
+      if (ci >= 0 && ci < nCanais && canais[ci].nome && canais[ci].nome[0]) {
+        snprintf(dst, n, "%s, %d de %d", canais[ci].nome, buscaFoco + 1, buscaNC);
+        return;
+      }
+    }
+    snprintf(dst, n, "Resultados da busca de canais, %d encontrados", buscaNC);
+    return;
+  }
   if (catAberto) {
-    snprintf(dst, n, "Categorias de TV ao vivo: %s, %d de %d",
-             linhaNome(catFoco), catFoco + 1, nLinhas());
+    int nl = nLinhas();
+    const char *cn = (catFoco >= 0 && catFoco < nl) ? linhaNome(catFoco) : "";
+    if (cn && cn[0]) {
+      snprintf(dst, n, "%s, %d de %d", cn, catFoco + 1, nl);
+    } else {
+      snprintf(dst, n, "Categorias de TV ao vivo");
+    }
     return;
   }
   if (fopAberto) {
     snprintf(dst, n, "Opções do canal, item %d", fopFoco + 1);
     return;
   }
+
+  // Grade propria BestCine TV (sidebar de categorias + grade de canais + topo)
+  if (bcGradeAtiva()) {
+    if (bcZona == 2) {
+      const char *rot = bcTopoFoco == 0 ? "Buscar canal" : "Atualizar canais";
+      snprintf(dst, n, "%s, botão", rot);
+      ultZona = 2;
+      return;
+    }
+    if (bcZona == 0) {
+      int totC = bcTotalCats();
+      const char *cn = (bcCatSel >= 0 && bcCatSel < totC) ? bcCatNome(bcCatSel) : "Todos";
+      int qtd = bcCatContagem(bcCatSel);
+      if (ultZona != 0) {
+        snprintf(dst, n, "Categorias. %s, %d canais, %d de %d",
+                 cn && cn[0] ? cn : "Todos", qtd, bcCatSel + 1, totC);
+      } else {
+        snprintf(dst, n, "%s, %d canais, %d de %d",
+                 cn && cn[0] ? cn : "Todos", qtd, bcCatSel + 1, totC);
+      }
+      ultZona = 0;
+      ultCat = bcCatSel;
+      return;
+    }
+    // bcZona == 1: grade de canais
+    {
+      int total = bcListaN();
+      const char *cat = bcCatNome(bcCatSel);
+      int mudouCat = (ultZona != 1 || ultCat != bcCatSel);
+      ultZona = 1;
+      ultCat = bcCatSel;
+      if (total <= 0) {
+        if (nCanais == 0) snprintf(dst, n, "Carregando canais, aguarde");
+        else if (bcCatSel == 1) snprintf(dst, n, "Nenhum canal favorito ainda");
+        else snprintf(dst, n, "Nenhum canal em %s", cat && cat[0] ? cat : "esta categoria");
+        return;
+      }
+      {
+        GCanal *c = bcListaCanal(bcGridFoco);
+        if (c && c->nome && c->nome[0]) {
+          char agoraProg[160];
+          guiaExtrairAgoraA11y(c, agoraProg, sizeof agoraProg);
+          if (mudouCat && cat && cat[0]) {
+            if (agoraProg[0]) {
+              snprintf(dst, n, "%s. %s%s. Agora: %s, %d de %d",
+                       cat, c->nome, c->fav ? ", favorito" : "", agoraProg, bcGridFoco + 1, total);
+            } else {
+              snprintf(dst, n, "%s. %s%s, %d de %d",
+                       cat, c->nome, c->fav ? ", favorito" : "", bcGridFoco + 1, total);
+            }
+          } else {
+            if (agoraProg[0]) {
+              snprintf(dst, n, "%s%s. Agora: %s, %d de %d",
+                       c->nome, c->fav ? ", favorito" : "", agoraProg, bcGridFoco + 1, total);
+            } else {
+              snprintf(dst, n, "%s%s, %d de %d",
+                       c->nome, c->fav ? ", favorito" : "", bcGridFoco + 1, total);
+            }
+          }
+          return;
+        }
+      }
+      snprintf(dst, n, "Carregando canais, aguarde");
+      return;
+    }
+  }
+
+  // Modo padrao / mini-guia / retrato (com verificacao estrita de limites!)
   if (focoTopo) {
     const char *rot = topoCol == 0 ? "Buscar canal" : topoCol == 1 ? "Categorias" : "Opções da TV ao vivo";
-    snprintf(dst, n, "TV ao vivo, botão: %s", rot);
+    snprintf(dst, n, "%s, botão", rot);
+    ultLin = -1;
     return;
   }
   {
-    GCanal *c = linhaItem(focoLin, focoCol);
-    const char *cat = linhaNome(focoLin);
-    if (c && c->nome && c->nome[0]) {
-      EpgProg ep;
-      memset(&ep, 0, sizeof ep);
-      if (gAgora(c, tFocoAgora(), &ep) && ep.titulo[0]) {
-        snprintf(dst, n, "TV ao vivo, %s: %s%s. Agora: %s",
-                 cat, c->nome, c->fav ? ", favorito" : "", ep.titulo);
+    int nl = nLinhas();
+    if (nl <= 0 || nCanais <= 0) {
+      snprintf(dst, n, "Carregando canais, aguarde");
+      return;
+    }
+    if (focoLin < 0 || focoLin >= nl) {
+      snprintf(dst, n, "Guia de canais");
+      return;
+    }
+    {
+      GCanal *c = linhaItem(focoLin, focoCol);
+      const char *cat = linhaNome(focoLin);
+      int totalLin = linhaN(focoLin);
+      int mudouLin = (ultLin != focoLin);
+      ultLin = focoLin;
+      if (c && c->nome && c->nome[0]) {
+        char agoraProg[160];
+        guiaExtrairAgoraA11y(c, agoraProg, sizeof agoraProg);
+        if (mudouLin && cat && cat[0]) {
+          if (agoraProg[0]) {
+            snprintf(dst, n, "%s. %s%s. Agora: %s, %d de %d",
+                     cat, c->nome, c->fav ? ", favorito" : "", agoraProg, focoCol + 1, totalLin);
+          } else {
+            snprintf(dst, n, "%s. %s%s, %d de %d",
+                     cat, c->nome, c->fav ? ", favorito" : "", focoCol + 1, totalLin);
+          }
+        } else {
+          if (agoraProg[0]) {
+            snprintf(dst, n, "%s%s. Agora: %s, %d de %d",
+                     c->nome, c->fav ? ", favorito" : "", agoraProg, focoCol + 1, totalLin);
+          } else {
+            snprintf(dst, n, "%s%s, %d de %d",
+                     c->nome, c->fav ? ", favorito" : "", focoCol + 1, totalLin);
+          }
+        }
+      } else if (cat && cat[0]) {
+        snprintf(dst, n, "%s", cat);
       } else {
-        snprintf(dst, n, "TV ao vivo, %s: %s%s",
-                 cat, c->nome, c->fav ? ", favorito" : "");
+        snprintf(dst, n, "Carregando canais, aguarde");
       }
-    } else if (nCanais == 0) {
-      snprintf(dst, n, "TV ao vivo. Carregando canais, aguarde.");
-    } else {
-      snprintf(dst, n, "TV ao vivo, %s", cat);
     }
   }
 }

@@ -23,6 +23,7 @@
 // REMOTO: so D-pad. Esquerda na borda esquerda devolve a barra lateral, como
 // nas outras telas; Voltar sobe um nivel (e, no topo, sai).
 #include "menu.h"
+#include "a11y.h"
 #include "explorar.h"
 #include "mapa.h"
 #include "posterprov.h"
@@ -1533,19 +1534,34 @@ int explorar_pediu_abrir(int *indice) {
 }
 
 void explorar_a11y(char *dst, size_t cap) {
+  static unsigned ultGer;
+  static int ultClima = -1;
+  unsigned ger;
   if (!cap) return;
   dst[0] = 0;
+  ger = a11y_geracao();
+  if (ger != ultGer) {
+    ultGer = ger;
+    ultClima = -1;
+  }
   if (modo == MODO_CLIMAS && clFoco >= 0 && clFoco < climas.n) {
-    snprintf(dst, cap, "Explorar: %s, %d de %d", i18n(mapa_clima_nome(climas.c[clFoco].id)), clFoco + 1, climas.n);
+    ultClima = -1;
+    snprintf(dst, cap, "%s, %d de %d", i18n(mapa_clima_nome(climas.c[clFoco].id)), clFoco + 1, climas.n);
     return;
   }
   if (modo == MODO_CLIMA && clAberto >= 0 && clAberto < climas.n && caN[caLinha] > 0) {
     int col = caCol[caLinha];
     if (col >= 0 && col < caN[caLinha]) {
       const MapaObra *o = &climas.c[clAberto].itens[caIdx[caLinha][col]];
+      int mudou = (ultClima != clAberto);
+      ultClima = clAberto;
       if (o->titulo[0]) {
-        snprintf(dst, cap, "Explorar, %s: %s, %d de %d",
-                 i18n(mapa_clima_nome(climas.c[clAberto].id)), o->titulo, col + 1, caN[caLinha]);
+        if (mudou) {
+          snprintf(dst, cap, "%s. %s, %d de %d",
+                   i18n(mapa_clima_nome(climas.c[clAberto].id)), o->titulo, col + 1, caN[caLinha]);
+        } else {
+          snprintf(dst, cap, "%s, %d de %d", o->titulo, col + 1, caN[caLinha]);
+        }
         return;
       }
     }

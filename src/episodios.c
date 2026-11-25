@@ -1310,14 +1310,14 @@ void episodios_a11y(char *dst, size_t cap) {
   dst[0] = 0;
   if (!aberto) return;
   if (grupo == 0) {
-    snprintf(dst, cap, "Episódios, Temporada %d", temporada);
+    snprintf(dst, cap, "Temporada %d", temporada);
     return;
   }
   {
     const CatEp *e = epLinha(foco);
     if (e) {
-      snprintf(dst, cap, "Temporada %d, Episódio %d: %s%s%s",
-               e->temporada, e->episodio, e->nome,
+      snprintf(dst, cap, "Episódio %d, %s%s%s",
+               e->episodio, e->nome,
                e->duracao[0] ? ", " : "", e->duracao);
       return;
     }

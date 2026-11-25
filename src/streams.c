@@ -6306,20 +6306,20 @@ void streams_a11y(char *dst, size_t cap) {
   dst[0] = 0;
   if (!aberta) return;
   if (nOrdem <= 0) {
-    snprintf(dst, cap, "Escolher fonte. Buscando fontes, aguarde.");
+    snprintf(dst, cap, "Buscando fontes, aguarde");
     return;
   }
   if (foco >= 0 && foco < nOrdem) {
     int idxS = ordem[foco];
     if (idxS >= 0 && idxS < n) {
       const Stream *s = &lista[idxS];
-      snprintf(dst, cap, "Fonte %d de %d: %s%s%s",
-               foco + 1, nOrdem,
+      snprintf(dst, cap, "%s%s%s, %d de %d",
                s->rotulo[0] ? s->rotulo : "Fonte",
                s->descricao[0] ? ", " : "",
-               s->descricao);
+               s->descricao,
+               foco + 1, nOrdem);
       return;
     }
   }
-  snprintf(dst, cap, "Escolher fonte, %d disponíveis", nOrdem);
+  snprintf(dst, cap, "%d fontes disponíveis", nOrdem);
 }

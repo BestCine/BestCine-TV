@@ -11527,7 +11527,7 @@ void ajustes_a11y(char *dst, size_t n) {
   dst[0] = 0;
   if (focoIndice) {
     const char *tit = (secAtual >= 0 && secAtual < nSecoes) ? TELA[secIni[secAtual]].titulo : "Ajustes";
-    snprintf(dst, n, "Ajustes, categoria: %s", i18n(tit));
+    snprintf(dst, n, "%s", i18n(tit));
     return;
   }
   if (focoItem >= 0 && focoItem < AJ_N_TELA) {
@@ -11535,16 +11535,16 @@ void ajustes_a11y(char *dst, size_t n) {
     if (it->tipo == IT_OPC && it->op >= 0 && it->op < AJ_N) {
       const char *rot = i18n(rotuloOpcao(it->op));
       const char *val = textoValor(it->op);
-      if (val && val[0]) snprintf(dst, n, "Ajuste %s, valor atual: %s", rot, i18n(val));
-      else snprintf(dst, n, "Ajuste %s", rot);
+      if (val && val[0]) snprintf(dst, n, "%s, %s", rot, i18n(val));
+      else snprintf(dst, n, "%s", rot);
       return;
     }
     if (it->tipo == IT_GRP && it->titulo) {
-      snprintf(dst, n, "Grupo de ajustes: %s", i18n(it->titulo));
+      snprintf(dst, n, "%s", i18n(it->titulo));
       return;
     }
     if (it->tipo == IT_MAIS) {
-      snprintf(dst, n, "Botão Mais opções");
+      snprintf(dst, n, "Mais opções, botão");
       return;
     }
   }

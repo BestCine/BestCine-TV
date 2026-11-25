@@ -1649,16 +1649,16 @@ void menu_a11y(char *dst, size_t n) {
   if (!aberto) return;
   if (linha == MENU_RODAPE) {
     const ContaPerfil *p = perfis_item_ativo();
-    snprintf(dst, n, "Menu, Trocar de perfil, perfil atual %s", p && p->nome[0] ? p->nome : "");
+    snprintf(dst, n, "Trocar de perfil, %s", p && p->nome[0] ? p->nome : "perfil atual");
     return;
   }
   if (linha >= MENU_ST0) {
     int pasta = tvPastaDoFoco(linha);
     const ColFolder *pf = pasta >= 0 ? col_folder(pasta) : NULL;
-    snprintf(dst, n, "Menu, Streaming, %s", pf && pf->title[0] ? pf->title : "Pasta");
+    snprintf(dst, n, "%s", pf && pf->title[0] ? pf->title : "Streaming");
     return;
   }
   if (linha >= 0 && linha < MENU_N) {
-    snprintf(dst, n, "Menu, %s%s", i18n(ROTULOS[linha]), linha == destino ? ", atual" : "");
+    snprintf(dst, n, "%s%s", i18n(ROTULOS[linha]), linha == destino ? ", selecionado" : "");
   }
 }

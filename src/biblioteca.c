@@ -2612,11 +2612,11 @@ void biblioteca_a11y(char *dst, size_t cap) {
       ? (lst_item(idxC, &tmp) ? &tmp : NULL)
       : (idxC < nFiltro ? itemFiltro(filtro[idxC], &tmp) : NULL);
     if (ci && ci->titulo[0]) {
-      snprintf(dst, cap, "Biblioteca: %s%s%s, %d de %d",
+      snprintf(dst, cap, "%s%s%s, %d de %d",
                ci->titulo, ci->meta[0] ? ", " : "", ci->meta,
                idxC + 1, nCelulas);
       return;
     }
   }
-  snprintf(dst, cap, "Biblioteca, %d itens", nCelulas);
+  snprintf(dst, cap, "%d itens", nCelulas);
 }

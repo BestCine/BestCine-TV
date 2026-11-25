@@ -1,4 +1,5 @@
 #include "faixas.h"
+#include "a11y.h"
 #include "legfontes.h"
 #include "ponteiro.h"
 #include "rolagemtoque.h"
@@ -2178,30 +2179,47 @@ const char *faixas_legenda_marca(int i) {
 }
 
 void faixas_a11y(char *dst, size_t cap) {
+  static unsigned ultGer;
+  static int ultCol = -1;
+  unsigned ger;
+  int mudou;
   if (!cap) return;
   dst[0] = 0;
   if (!aberta) return;
+  ger = a11y_geracao();
+  if (ger != ultGer) {
+    ultGer = ger;
+    ultCol = -1;
+  }
+  mudou = (ultCol != coluna);
+  ultCol = coluna;
   if (coluna == 0) {
     int idxA = foco[0];
     const VideoFaixa *f = (idxA >= 0 && idxA < video_n_audio()) ? video_audio(idxA) : NULL;
+    const char *sel = (idxA == video_audio_atual()) ? ", selecionado" : "";
     if (f && f->rotulo[0]) {
-      snprintf(dst, cap, "Áudio: %s%s", f->rotulo, idxA == video_audio_atual() ? ", selecionado" : "");
+      if (mudou) snprintf(dst, cap, "Áudio. %s%s", f->rotulo, sel);
+      else snprintf(dst, cap, "%s%s", f->rotulo, sel);
     } else {
-      snprintf(dst, cap, "Áudio, faixa %d", idxA + 1);
+      if (mudou) snprintf(dst, cap, "Áudio. Faixa %d%s", idxA + 1, sel);
+      else snprintf(dst, cap, "Faixa %d%s", idxA + 1, sel);
     }
     return;
   }
   if (coluna == 1) {
     int idxL = foco[1];
     if (idxL == 0) {
-      snprintf(dst, cap, "Legendas: Desligada");
+      if (mudou) snprintf(dst, cap, "Legendas. Desligada");
+      else snprintf(dst, cap, "Desligada");
     } else {
       const char *marca = NULL;
       int k = legDaLinha(idxL - 1);
       const char *rot = (k >= 0 && k < video_n_legenda()) ? rotuloLegenda(k, &marca) : NULL;
-      snprintf(dst, cap, "Legenda: %s", rot && rot[0] ? rot : "Faixa externa");
+      const char *txt = (rot && rot[0]) ? rot : "Faixa externa";
+      if (mudou) snprintf(dst, cap, "Legendas. %s", txt);
+      else snprintf(dst, cap, "%s", txt);
     }
     return;
   }
-  snprintf(dst, cap, "Áudio e legendas, opções");
+  snprintf(dst, cap, "Opções de legenda");
 }

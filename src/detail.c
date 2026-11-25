@@ -23,6 +23,7 @@
 #define NV_TXT_TELA   // NV_TELA_W/H = tela virtual da escala de texto (escala.h)
 #include "escala.h"
 #include "detail.h"
+#include "a11y.h"
 #include "biblioteca.h"
 #include "detail_acoes.h"
 #include "focoprof.h"
@@ -8284,48 +8285,93 @@ void detail_desenhar(Uint32 agora) {
 }
 
 void detail_a11y(char *dst, size_t n) {
+  static unsigned ultGer;
+  static int ultIdx = -1;
+  static int ultNivel = -1;
+  static int ultSec = -1;
+  static int ultTempEp = -1;
+  unsigned ger;
   const CatItem *ci = cat_item(idx);
   const char *tit = (ci && ci->titulo[0]) ? ci->titulo : "Título";
+  int anunciouTitulo;
   if (!n) return;
   dst[0] = 0;
+  ger = a11y_geracao();
+  if (ger != ultGer || ultIdx != idx) {
+    ultGer = ger;
+    ultIdx = idx;
+    ultNivel = -1;
+    ultSec = -1;
+    ultTempEp = -1;
+    anunciouTitulo = 0;
+  } else {
+    anunciouTitulo = 1;
+  }
+
   if (nivel == 0) {
-    if (focoAmigos) {
-      snprintf(dst, n, "%s. Botão Atividade de amigos.", tit);
-      return;
-    }
-    int ac = acaoEm(botao);
     const char *rot = "Botão";
-    switch (ac) {
-      case ACAO_PRIMARIO:  rot = det_rotulo_primario(ci ? ci->progresso : 0, ajustes_cw_concluido()); break;
-      case ACAO_INICIO:    rot = "Assistir do início"; break;
-      case ACAO_LISTA:     rot = (ci && ci->naLista) ? "Na sua lista" : "Adicionar à lista"; break;
-      case ACAO_ASSISTIDO: rot = (ci && cat_visto(ci)) ? "Marcado como assistido" : "Marcar como assistido"; break;
-      case ACAO_FONTES:    rot = "Escolher fonte"; break;
-      case ACAO_LEMBRAR:   rot = "Lembrar-me"; break;
-      case ACAO_RECOMENDAR:rot = "Recomendar"; break;
-      case ACAO_ARTE:      rot = "Trocar arte"; break;
-      case ACAO_TRAILER:   rot = "Assistir trailer"; break;
-      case ACAO_EXPLORAR:  rot = "Explorar parecidos"; break;
-      case ACAO_MAIS:      rot = "Mais opções"; break;
-      default: break;
+    if (focoAmigos) {
+      rot = "Atividade de amigos";
+    } else {
+      int ac = acaoEm(botao);
+      switch (ac) {
+        case ACAO_PRIMARIO:  rot = det_rotulo_primario(ci ? ci->progresso : 0, ajustes_cw_concluido()); break;
+        case ACAO_INICIO:    rot = "Assistir do início"; break;
+        case ACAO_LISTA:     rot = (ci && ci->naLista) ? "Na sua lista" : "Adicionar à lista"; break;
+        case ACAO_ASSISTIDO: rot = (ci && cat_visto(ci)) ? "Marcado como assistido" : "Marcar como assistido"; break;
+        case ACAO_FONTES:    rot = "Escolher fonte"; break;
+        case ACAO_LEMBRAR:   rot = "Lembrar-me"; break;
+        case ACAO_RECOMENDAR:rot = "Recomendar"; break;
+        case ACAO_ARTE:      rot = "Trocar arte"; break;
+        case ACAO_TRAILER:   rot = "Assistir trailer"; break;
+        case ACAO_EXPLORAR:  rot = "Explorar parecidos"; break;
+        case ACAO_MAIS:      rot = "Mais opções"; break;
+        default: break;
+      }
+      rot = i18n(rot);
     }
-    snprintf(dst, n, "%s%s%s. Botão: %s", tit, (ci && ci->meta[0]) ? ", " : "", ci ? ci->meta : "", i18n(rot));
+    ultNivel = 0;
+    ultSec = -1;
+    if (!anunciouTitulo) {
+      snprintf(dst, n, "%s%s%s. %s, botão",
+               tit, (ci && ci->meta[0]) ? ", " : "", ci ? ci->meta : "", rot);
+    } else {
+      snprintf(dst, n, "%s, botão", rot);
+    }
     return;
   }
   if (foco.fileira == SEC_TEMPORADAS) {
     int t = temporadaEm(foco.coluna);
-    if (t > 0) snprintf(dst, n, "%s, Temporada %d", tit, t);
-    else snprintf(dst, n, "%s, Especiais", tit);
+    int mudou = (ultNivel != 1 || ultSec != SEC_TEMPORADAS);
+    ultNivel = 1;
+    ultSec = SEC_TEMPORADAS;
+    if (t > 0) {
+      if (mudou) snprintf(dst, n, "Temporadas. Temporada %d", t);
+      else snprintf(dst, n, "Temporada %d", t);
+    } else {
+      if (mudou) snprintf(dst, n, "Temporadas. Especiais");
+      else snprintf(dst, n, "Especiais");
+    }
     return;
   }
   if (foco.fileira == SEC_EPISODIOS) {
     const CatEp *ep = cat_episodio(idx, epAbsoluto(foco.coluna));
+    int mudou = (ultNivel != 1 || ultSec != SEC_EPISODIOS);
+    ultNivel = 1;
+    ultSec = SEC_EPISODIOS;
     if (ep) {
-      snprintf(dst, n, "Temporada %d, Episódio %d: %s%s%s",
-               ep->temporada, ep->episodio, ep->nome,
-               ep->duracao[0] ? ", " : "", ep->duracao);
+      if (mudou || ultTempEp != ep->temporada) {
+        ultTempEp = ep->temporada;
+        snprintf(dst, n, "Temporada %d. Episódio %d, %s%s%s",
+                 ep->temporada, ep->episodio, ep->nome,
+                 ep->duracao[0] ? ", " : "", ep->duracao);
+      } else {
+        snprintf(dst, n, "Episódio %d, %s%s%s",
+                 ep->episodio, ep->nome,
+                 ep->duracao[0] ? ", " : "", ep->duracao);
+      }
       return;
     }
   }
-  snprintf(dst, n, "Detalhes de %s", tit);
+  snprintf(dst, n, "%s", tit);
 }
