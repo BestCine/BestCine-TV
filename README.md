@@ -2,7 +2,7 @@
   <img src="deploy/app/icon-large.png" alt="BestCine TV" width="120">
 </p>
 
-<h1 align="center">📺 BestCine TV (v1.1.8) — Smart TVs, TV Box, Mi Box &amp; Fire TV</h1>
+<h1 align="center">📺 BestCine TV (v1.1.9) — Smart TVs, TV Box, Mi Box &amp; Fire TV</h1>
 
 <p align="center">
   <strong>Versão feita especialmente para CONTROLE REMOTO (60 FPS nativo)</strong><br>
@@ -14,7 +14,7 @@
     <img src="https://img.shields.io/badge/⬇️_CENTRAL_OFICIAL_DE_DOWNLOADS-bestcine.github.io-2563EB?style=for-the-badge" alt="Baixar BestCine" />
   </a>
   <a href="https://github.com/BestCine/BestCine-TV/releases/latest">
-    <img src="https://img.shields.io/badge/Vers%C3%A3o_Atual-v1.1.8-1E6BFF?style=for-the-badge" alt="Versão Atual" />
+    <img src="https://img.shields.io/badge/Vers%C3%A3o_Atual-v1.1.9-1E6BFF?style=for-the-badge" alt="Versão Atual" />
   </a>
   <a href="https://github.com/BestCine/BestCine">
     <img src="https://img.shields.io/badge/Windows_PC_%26_Celular-BestCine-0078D6?style=for-the-badge" alt="App PC e Celular" />
@@ -48,11 +48,11 @@ Se o seu aparelho usa **Android TV, Google TV ou Fire TV** (exige **Android 7 ou
 
 | Letras do modelo da sua Samsung | Versão do Tizen | Clique para baixar |
 |---|---|---|
-| **`NU` / `RU` / `TU`** *(ex.: NU7100, RU7100, TU7000, TU8000)* | Tizen 4.0 – 5.5 | 👉 **[⬇️ Baixar para NU / RU / TU (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.8/BestCineTV-1.1.8-NuvioTpk40.tpk)** |
-| **`AU` / `Q60A` / `Q70A` / `Q80A`** *(ex.: AU7700, AU8000)* | Tizen 6.0 | 👉 **[⬇️ Baixar para AU / linha A (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.8/BestCineTV-1.1.8-NuvioTpk60.tpk)** |
-| **`BU` / `CU` / `Q60B` / `Q60C`** *(ex.: BU8000, CU7700, CU8000)* | Tizen 6.5 – 7.0 | 👉 **[⬇️ Baixar para BU / CU (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.8/BestCineTV-1.1.8-NuvioTpk65.tpk)** |
-| **`DU` / `U` / `Q60D` / `S90D+`** *(ex.: DU7700, DU8000, U8500F, modelos 2024+)* | Tizen 8.0 – 9.0 | 👉 **[⬇️ Baixar para DU / U / 2024+ (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.8/BestCineTV-1.1.8-NuvioTpk.tpk)** |
-| *Alternativa WebAssembly (se o `.tpk` acima der erro)* | Tizen 5.5+ | 👉 **[⬇️ Baixar versão .wgt](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.8/BestCineTV-1.1.8-tizen.wgt)** |
+| **`NU` / `RU` / `TU`** *(ex.: NU7100, RU7100, TU7000, TU8000)* | Tizen 4.0 – 5.5 | 👉 **[⬇️ Baixar para NU / RU / TU (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.9/BestCineTV-1.1.9-NuvioTpk40.tpk)** |
+| **`AU` / `Q60A` / `Q70A` / `Q80A`** *(ex.: AU7700, AU8000)* | Tizen 6.0 | 👉 **[⬇️ Baixar para AU / linha A (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.9/BestCineTV-1.1.9-NuvioTpk60.tpk)** |
+| **`BU` / `CU` / `Q60B` / `Q60C`** *(ex.: BU8000, CU7700, CU8000)* | Tizen 6.5 – 7.0 | 👉 **[⬇️ Baixar para BU / CU (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.9/BestCineTV-1.1.9-NuvioTpk65.tpk)** |
+| **`DU` / `U` / `Q60D` / `S90D+`** *(ex.: DU7700, DU8000, U8500F, modelos 2024+)* | Tizen 8.0 – 9.0 | 👉 **[⬇️ Baixar para DU / U / 2024+ (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.9/BestCineTV-1.1.9-NuvioTpk.tpk)** |
+| *Alternativa WebAssembly (se o `.tpk` acima der erro)* | Tizen 5.5+ | 👉 **[⬇️ Baixar versão .wgt](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.9/BestCineTV-1.1.9-tizen.wgt)** |
 
 - **Como instalar:** envie o arquivo `.tpk` escolhido para a TV usando o **[Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung)** (ele assina automaticamente para a sua TV).
 - Se der erro `TypeLoadException` ao abrir, significa apenas que você baixou o `.tpk` de outra letra — basta instalar o da linha certa do `tizen=X.X` que aparece na tela.
@@ -68,15 +68,15 @@ Se o seu aparelho usa **Android TV, Google TV ou Fire TV** (exige **Android 7 ou
      ```
   3. Procure por **BestCine TV** e clique em **Install**.
 - **Ou baixe o arquivo `.ipk` direto:**
-  👉 **[⬇️ BAIXAR BESTCINE TV PARA LG webOS (.ipk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.8/com.bestcine.tv_1.1.8_arm.ipk)** *(ou [versão High-Cache para TVs com 2 GB+ RAM](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.8/com.bestcine.tv_1.1.8_arm-highcache.ipk))*.
+  👉 **[⬇️ BAIXAR BESTCINE TV PARA LG webOS (.ipk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.9/com.bestcine.tv_1.1.9_arm.ipk)** *(ou [versão High-Cache para TVs com 2 GB+ RAM](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.9/com.bestcine.tv_1.1.9_arm-highcache.ipk))*.
 
 ---
 
 ### 4️⃣ Quer instalar no WINDOWS, macOS, Linux, Celular Android ou iPhone/iPad?
 > ⚠️ **NÃO use os arquivos desta página no PC ou no Celular!** Baixe a versão de PC e Celular aqui:
-- 💻 **[⬇️ BAIXAR PARA WINDOWS PC (.msi)](https://github.com/BestCine/BestCine/releases/download/v1.1.8/BestCine-Windows-x64-1.1.8.msi)**
-- 📱 **[⬇️ BAIXAR PARA CELULAR / TABLET ANDROID — APK único universal (.apk)](https://github.com/BestCine/BestCine/releases/download/v1.1.8/BestCine-Android-universal-1.1.8.apk)**
-- 🍏 **[⬇️ BAIXAR PARA iPHONE / iPAD (.ipa)](https://github.com/BestCine/BestCine/releases/download/v1.1.8/BestCine-iOS-1.1.8.ipa)** *(Fonte SideStore / AltStore: **[altstore.json](https://bestcine.github.io/altstore.json)**)*
+- 💻 **[⬇️ BAIXAR PARA WINDOWS PC (.msi)](https://github.com/BestCine/BestCine/releases/download/v1.1.9/BestCine-Windows-x64-1.1.9.msi)**
+- 📱 **[⬇️ BAIXAR PARA CELULAR / TABLET ANDROID — APK único universal (.apk)](https://github.com/BestCine/BestCine/releases/download/v1.1.9/BestCine-Android-universal-1.1.9.apk)**
+- 🍏 **[⬇️ BAIXAR PARA iPHONE / iPAD (.ipa)](https://github.com/BestCine/BestCine/releases/download/v1.1.9/BestCine-iOS-1.1.9.ipa)** *(Fonte SideStore / AltStore: **[altstore.json](https://bestcine.github.io/altstore.json)**)*
 - Página completa do app de PC &amp; Celular: **[BestCine/BestCine](https://github.com/BestCine/BestCine)** · Central oficial: **[bestcine.github.io](https://bestcine.github.io)**
 
 ---
