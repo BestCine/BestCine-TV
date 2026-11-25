@@ -169,7 +169,7 @@ static float aj2MenuNecessario(float f, int nLin) {
 static void aj2MenuMedir(void) {
   GfxRect m = aj2MenuR();
   float janela = m.h - 2 * AJ2_MENU_PAD, f = 1.0f, n0, n1;
-  int nLin = nSecoes > 0 ? nSecoes : 11;
+  int nLin = nSecoes > 0 ? nSecoes : 12;
   n0 = aj2MenuNecessario(0.0f, nLin); n1 = aj2MenuNecessario(1.0f, nLin);
   aj2Fade = 70.0f;
   // Com as pilulas em duas fileiras o cabecalho cresceu ~76: a linha pode
@@ -200,7 +200,7 @@ static int aj2MenuFocado(void) { return focoIndice ? uxIndice : -1; }
 // Os tres grupos do indice: so a apresentacao. As categorias seguem a ordem de
 // TELA[] (ajustes_ux_tela.inc, 2.0.3: Assistir = 0-3, Telas = 4-7, o resto em
 // Conta e sistema); nada aqui mexe em valor[] nem em CHAVE[].
-static int aj2Grupo(int s) { return s < AJS_HOME ? 0 : s < AJS_CONTAS ? 1 : 2; }
+static int aj2Grupo(int s) { return s < AJS_HOME ? 0 : s < AJS_BC_CATALOGOS ? 1 : 2; }
 static int aj2GrupoDe(int s) { return aj2Grupo(s); }
 static int aj2GrupoIni(int s) { return s == 0 || aj2Grupo(s) != aj2Grupo(s - 1); }
 static const char *aj2GrupoNome(int g) { return g == 0 ? "Assistir" : g == 1 ? "Telas" : "Conta e sistema"; }
@@ -247,6 +247,11 @@ static void aj2MenuValor(int sec, char *b, size_t n) {
       int contas = iptv_contas(NULL, 0);
       if (contas) snprintf(b, n, "%s: %d", i18n("Contas de TV ao vivo"), contas);
       else snprintf(b, n, "%s", i18n("Não configurado"));
+      return; }
+    case AJS_BC_CATALOGOS: {
+      int ativos = (lig(AJ_BC_MOMENTO) ? 1 : 0) + (lig(AJ_BC_SAZONAL) ? 1 : 0)
+                 + (lig(AJ_BC_TEMPO_ATIVO) ? 1 : 0) + (lig(AJ_BC_STR_ATIVO) ? 1 : 0);
+      snprintf(b, n, "Exclusivo BestCine · %d %s", ativos, ativos == 1 ? "ativo" : "ativos");
       return; }
     case AJS_CONTAS: {   // "Henrique · Trakt"
       size_t u = (size_t)snprintf(b, n, "%s", textoLeitura(AJ_PERFIL_ATIVO));
@@ -867,16 +872,22 @@ static void aj2GradeDescoberta(int t) {
 // O valor vivo de cada categoria (aj2MenuValor) com a tinta do foco.
 static void aj2GradeCartaoDesenhar(int s, float f) {
   float k = aj2Suave(f), tile, tx, tw, y;
-  int j = s + 2;
+  int j = s + 2, isBc = (s == AJS_BC_CATALOGOS);
   char vb[200];
   const char *nome = aj2MenuTitulo(j);
   TxtEstilo en = TXT_V3_NOME;
   GfxRect r = aj2GradeSuperficie(aj2GradeCartao(s), 20.0f, k, 7.0f, 0.45f, 0);
+  if (isBc && k < 0.99f) {
+    // Destaque exclusivo BestCine (azul real + borda luminosa) para nao passar batido
+    gfx_cor(r, 20.0f / r.h, 0.118f, 0.420f, 1.0f, 0.22f * (1.0f - k));
+    gfx_anel(r, 20.0f / r.h, 2.0f, 0.28f, 0.60f, 1.0f, 0.78f * (1.0f - k));
+  }
   // O ladrilho do icone (60 x 60 no mockup, raio 14).
   tile = r.h - 50.0f > 75.0f ? 75.0f : r.h - 50.0f;
   { GfxRect tr = { r.x + 25.0f, r.y + (r.h - tile) * 0.5f, tile, tile };
     float ico = tile * 0.50f;
-    gfx_cor(tr, 17.0f / tile, 1, 1, 1, 0.07f + 0.12f * k);
+    if (isBc && k < 0.99f) gfx_cor(tr, 17.0f / tile, 0.145f, 0.420f, 0.96f, 0.85f * (1.0f - k));
+    else gfx_cor(tr, 17.0f / tile, 1, 1, 1, 0.07f + 0.12f * k);
     aj2GradeIcone(aj2MenuIcone(j), tr.x + (tile - ico) * 0.5f, tr.y + (tile - ico) * 0.5f, ico, k); }
   tx = r.x + 25.0f + tile + 25.0f;
   tw = r.x + r.w - 25.0f - tx;
@@ -891,7 +902,26 @@ static void aj2GradeCartaoDesenhar(int s, float f) {
       if (k < 0.99f) txt_bloco(en, nome, 243, 242, 239, tx, y, tw, lineH, 1.0f - k, 2);
       if (k > 0.01f) txt_bloco(en, nome, ti, ti, ti, tx, y, tw, lineH, k, 2);
     }
-    if (valH > 0) aj2GradeTexto(TXT_V3_VALOR, vb, tx, y + nomeH + 4.0f + valH * 0.5f, tw, 0.62f, k); }
+    // Selo "BESTCINE" ao lado do titulo (ou no canto superior direito se houver folga), sem sobrepor texto
+    if (isBc) {
+      float bw = txt_tracking(TXT_V2_KICK, "BESTCINE", 255, 255, 255, -1, 0, 1, 1.8f) + 18.0f;
+      TxtLinha ln = ajTxtC(en, nome, tw);
+      int cabeLinha = (linhas == 1 && tx + ln.w + 14.0f + bw <= r.x + r.w - 18.0f);
+      if (cabeLinha || y >= r.y + 36.0f) {
+        GfxRect br = cabeLinha
+          ? (GfxRect){ tx + ln.w + 14.0f, y + 25.0f - 13.0f, bw, 26.0f }
+          : (GfxRect){ r.x + r.w - bw - 16.0f, r.y + 10.0f, bw, 24.0f };
+        if (k < 0.99f) {
+          gfx_cor(br, 6.0f / br.h, 0.145f, 0.420f, 0.96f, 0.92f * (1.0f - k));
+          txt_tracking(TXT_V2_KICK, "BESTCINE", 235, 246, 255, br.x + 9.0f, br.y + (br.h - 21.0f) * 0.5f, 1.0f - k, 1.8f);
+        }
+        if (k > 0.01f) {
+          gfx_cor(br, 6.0f / br.h, ti / 255.0f, ti / 255.0f, ti / 255.0f, 0.18f * k);
+          txt_tracking(TXT_V2_KICK, "BESTCINE", ti, ti, ti, br.x + 9.0f, br.y + (br.h - 21.0f) * 0.5f, k, 1.8f);
+        }
+      }
+    }
+    if (valH > 0) aj2GradeTexto(TXT_V3_VALOR, vb, tx, y + nomeH + 4.0f + valH * 0.5f, tw, isBc ? 0.85f : 0.62f, k); }
 }
 // --- O INDICE EM LISTA (#339, Ajustes › Aparencia › Layout dos Ajustes) -------------
 // "La pantalla de ajustes anterior, la de las filas uno abajo de la otra, era muy
@@ -980,10 +1010,14 @@ static void aj2LLinha(int sec, float f, float a) {
   GfxRect r = aj2LLinhaR(sec);
   float k = aj2Suave(f), yc = r.y + aj2LRh * 0.5f, x = aj2LTextoX(r), xDir = r.x + r.w - 26.0f, tinta = ajTinta() / 255.0f;
   float grupo = gfx_opacidade_grupo;
-  int j = sec + 2;
+  int j = sec + 2, isBc = (sec == AJS_BC_CATALOGOS);
   char vb[200];
   if (a <= 0.004f) return;
   gfx_opacidade_grupo = grupo * a;
+  if (isBc && k < 0.99f) {
+    gfx_cor(r, 20.0f / r.h, 0.118f, 0.420f, 1.0f, 0.18f * (1.0f - k));
+    gfx_anel(r, 20.0f / r.h, 1.8f, 0.28f, 0.60f, 1.0f, 0.65f * (1.0f - k));
+  }
   // A superficie so na linha em foco: o acento cheio e o halo dele.
   if (k > 0.01f) {
     float ar, ag, ab;
@@ -993,7 +1027,8 @@ static void aj2LLinha(int sec, float f, float a) {
   }
   // o ladrilho do icone
   { GfxRect tr = { r.x + 22.0f, yc - AJ2_L_ICO * 0.5f, AJ2_L_ICO, AJ2_L_ICO };
-    gfx_cor(tr, 14.0f / AJ2_L_ICO, 1, 1, 1, 0.07f + 0.13f * k);
+    if (isBc && k < 0.99f) gfx_cor(tr, 14.0f / AJ2_L_ICO, 0.145f, 0.420f, 0.96f, 0.85f * (1.0f - k));
+    else gfx_cor(tr, 14.0f / AJ2_L_ICO, 1, 1, 1, 0.07f + 0.13f * k);
     aj2GradeIcone(aj2MenuIcone(j), tr.x + 13, tr.y + 13, AJ2_L_ICO - 26, k); }
   // a direita: o valor de agora e a seta
   { float xv = xDir - 22.0f;
@@ -1002,13 +1037,30 @@ static void aj2LLinha(int sec, float f, float a) {
     if (k > 0.01f) gfx_icone((GfxRect){ xv, yc - 11.0f, 22.0f, 22.0f }, "aj_chevron-right", tinta, tinta, tinta, 0.85f * k);
     xv -= 18.0f;
     aj2MenuValor(sec, vb, sizeof vb);
-    if (vb[0]) {
-      float livre = xv - (x + wNome + 48.0f);
-      if (livre > 120.0f) {
-        TxtLinha l = ajTxtC(TXT_V3_VALOR, vb, livre);
-        aj2GradeTexto(TXT_V3_VALOR, vb, xv - l.w, yc, livre, 0.62f, k);
+    { float badgeW = 0.0f;
+      if (isBc) {
+        float bw = txt_tracking(TXT_V2_KICK, "BESTCINE", 255, 255, 255, -1, 0, 1, 1.8f) + 18.0f;
+        if (x + wNome + 16.0f + bw < xv - 16.0f) {
+          GfxRect br = { x + wNome + 16.0f, yc - 13.0f, bw, 26.0f };
+          int ti = ajTinta();
+          if (k < 0.99f) {
+            gfx_cor(br, 6.0f / 26.0f, 0.145f, 0.420f, 0.96f, 0.92f * (1.0f - k));
+            txt_tracking(TXT_V2_KICK, "BESTCINE", 235, 246, 255, br.x + 9.0f, br.y + 2.5f, 1.0f - k, 1.8f);
+          }
+          if (k > 0.01f) {
+            gfx_cor(br, 6.0f / 26.0f, ti / 255.0f, ti / 255.0f, ti / 255.0f, 0.18f * k);
+            txt_tracking(TXT_V2_KICK, "BESTCINE", ti, ti, ti, br.x + 9.0f, br.y + 2.5f, k, 1.8f);
+          }
+          badgeW = 16.0f + bw;
+        }
       }
-    }
+      if (vb[0]) {
+        float livre = xv - (x + wNome + badgeW + 48.0f);
+        if (livre > 120.0f) {
+          TxtLinha l = ajTxtC(TXT_V3_VALOR, vb, livre);
+          aj2GradeTexto(TXT_V3_VALOR, vb, xv - l.w, yc, livre, isBc ? 0.85f : 0.62f, k);
+        }
+      } }
     aj2GradeTexto(TXT_V3_DESC, aj2MenuTitulo(j), x, yc, xv - x - 20.0f, 1.0f, k); }
   // a frase da categoria, aberta embaixo do nome
   if (k > 0.01f) {
@@ -1205,7 +1257,8 @@ static void aj2DesenharPagina(float t) {
   gfx_cor(r, ajTelaCheia() ? 0.0f : 36.0f / r.h, ar, ag, ab, 0.10f + 0.55f * (1.0f - k));
   gfx_opacidade_grupo = grupo * conteudo;
   if (uxIndice >= 2) {
-    nome = aj2MenuTitulo(uxIndice); ic = aj2MenuIcone(uxIndice); kick = aj2GrupoNome(aj2Grupo(sec));
+    nome = aj2MenuTitulo(uxIndice); ic = aj2MenuIcone(uxIndice);
+    kick = sec == AJS_BC_CATALOGOS ? "Exclusivo BestCine" : aj2GrupoNome(aj2Grupo(sec));
     aj2MenuValor(sec, vb, sizeof vb);
     // No cabecalho so o valor principal (mockup: "4K", "Portugues").
     if (sec == AJS_REPRODUCAO) snprintf(vb, sizeof vb, "%s", i18n(textoValor(AJ_QUALIDADE)));

@@ -1179,7 +1179,8 @@ static void ajcCenaOpcao(int sec, int op) {
     default: break;
   }
   switch (sec) {
-    case AJS_HOME: ajcCenaHome(op); return;
+    case AJS_HOME:
+    case AJS_BC_CATALOGOS: ajcCenaHome(op); return;
     case AJS_TITULO: ajcCenaTitulo(op); return;
     case AJS_CARTAZES: ajcCenaCartazes(op); return;
     case AJS_TRAILERS: ajcCenaTrailer(op); return;
@@ -1195,7 +1196,8 @@ static void ajcCenaOpcao(int sec, int op) {
 }
 static void ajcCenaCategoria(int sec) {
   switch (sec) {
-    case AJS_HOME: ajcCenaHome(-1); return;
+    case AJS_HOME:
+    case AJS_BC_CATALOGOS: ajcCenaHome(-1); return;
     case AJS_TITULO: ajcCenaTitulo(-1); return;
     case AJS_CARTAZES: ajcCenaCartazes(AJ_PROF); return;
     case AJS_TRAILERS: ajcCenaTrailer(-1); return;

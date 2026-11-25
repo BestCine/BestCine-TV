@@ -262,6 +262,12 @@ static const char *ajVisualIcone(int op) {
     case AJ_PERFIL_ATIVO: return "aj_user-round";
     case AJ_BC_CONTA: return "aj_user-round";
     case AJ_BC_DNS: return "aj_shield-check";
+    case AJ_BC_MOMENTO: case AJ_BC_SAZONAL: return "aj_sparkles";
+    case AJ_BC_TEMPO_ATIVO: case AJ_BC_TEMPO_RAPIDOS: case AJ_BC_TEMPO_MINI: case AJ_BC_TEMPO_EPICOS: return "aj_clock";
+    case AJ_BC_STR_ATIVO: case AJ_BC_STR_TIPO:
+    case AJ_BC_STR_NETFLIX: case AJ_BC_STR_PRIME: case AJ_BC_STR_DISNEY:
+    case AJ_BC_STR_MAX: case AJ_BC_STR_GLOBOPLAY: case AJ_BC_STR_APPLETV:
+    case AJ_BC_STR_PARAMOUNT: case AJ_BC_STR_CRUNCHYROLL: return "aj_tv-minimal-play";
     case AJ_SYNC: return "aj_cloud";
     case AJ_ADDONS: return "aj_user-round";
     case AJ_PLUGINS: return "aj_puzzle";
@@ -334,7 +340,7 @@ static const char *ajVisualIcone(int op) {
 // CENA das opcoes de trailer dentro de Cartazes e trailers.
 enum { AJS_REPRODUCAO = 0, AJS_IDIOMAS, AJS_FONTES, AJS_TVAOVIVO,
        AJS_HOME, AJS_APARENCIA, AJS_TITULO, AJS_CARTAZES,
-       AJS_CONTAS, AJS_DESEMPENHO, AJS_SOBRE, AJS_N, AJS_TRAILERS = AJS_N };
+       AJS_BC_CATALOGOS, AJS_CONTAS, AJS_DESEMPENHO, AJS_SOBRE, AJS_N, AJS_TRAILERS = AJS_N };
 static float ajPreviaHome(float x, float y, float w);
 static float ajPreviaHomeArte(float x, float y, float w, int arte);
 static const char *ajTituloN(int n);
@@ -360,6 +366,7 @@ static const signed char AJ_ARTE_SEC[AJS_N + 1][AJ_ARTE_BLOCOS] = {
   {  9, 36, 39, 38,  6, 11,  9, -1, -1, -1 },   // Aparencia: Cores e vidro, Fileiras, Logo e abertura, Texto e tamanho, Movimento e relogio, Tela de descanso; Mais
   {  3,  4, 17,  4, 17, -1, -1, -1, -1, -1 },   // Pagina do titulo: O que aparece, Notas, Dados do titulo; Mais: notas, dados
   { 13, 35, 27, 15, 16, 13, 35, 27, 15, -1 },   // Cartazes e trailers: Cartaz em foco, Forma, Arte, Trailers, Som e imagem; Mais
+  {  0, 29, 12, -1, -1, -1, -1, -1, -1, -1 },   // Catalogos BestCine: Inteligentes, Tempo/Duracao, Streamings (Brasil)
   { 23, 33,  8, -1, -1, -1, -1, -1, -1, -1 },   // Conta e servicos: Perfil, Trakt e Simkl, Notificacoes
   { 26, -1, -1, -1, -1, -1, -1, -1, -1, -1 },   // Esta TV (Mais: Memoria)
   { 30, 25, -1, -1, -1, -1, -1, -1, -1, -1 },   // Sobre e ajuda: (guia e) App, Registro
@@ -477,8 +484,8 @@ static float ajVisualCena(int sec, int op, float x, float y, float w) {
 #define ICON(n,a,b,d,al) ajIcone(n, PX(a), PY(b), (d) * s, al)
 #define TXT(t,px,f,a,b,al) ajTextoMini(t, (px) * s, f, PX(a), PY(b), 243, 242, 239, al)
   ajustes_acento(&ar, &ag, &ab);
-  if (sec == AJS_HOME) {   // a Home dela, em miniatura (o destaque muda com o submenu)
-    if (op < 0 || A == ajCenaArteN(AJS_HOME)) return ajPreviaHome(x, y, w);
+  if (sec == AJS_HOME || sec == AJS_BC_CATALOGOS) {   // a Home dela, em miniatura (o destaque muda com o submenu)
+    if (op < 0 || A == ajCenaArteN(sec)) return ajPreviaHome(x, y, w);
     return ajPreviaHomeArte(x, y, w, A);
   }
   gfx_recorte(x, y, w, h);

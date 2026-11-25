@@ -279,6 +279,13 @@ static const char *uxSinonimos(int op) {
     case AJ_HERO_ANO: return "ano destaque hero lancamento year data esconder mostrar";
     case AJ_HERO_PASTA_DETALHES: return "pasta colecao detalhes destaque hero folder collection details title";
     case AJ_BC_CONTA: return "bestcine conta plano assinatura vitalicio renovar atualizar catalogos usuario email";
+    case AJ_BC_MOMENTO: case AJ_BC_SAZONAL: case AJ_BC_TEMPO_ATIVO:
+    case AJ_BC_TEMPO_RAPIDOS: case AJ_BC_TEMPO_MINI: case AJ_BC_TEMPO_EPICOS:
+    case AJ_BC_STR_ATIVO: case AJ_BC_STR_TIPO:
+    case AJ_BC_STR_NETFLIX: case AJ_BC_STR_PRIME: case AJ_BC_STR_DISNEY:
+    case AJ_BC_STR_MAX: case AJ_BC_STR_GLOBOPLAY: case AJ_BC_STR_APPLETV:
+    case AJ_BC_STR_PARAMOUNT: case AJ_BC_STR_CRUNCHYROLL:
+      return "bestcine exclusivo catalogo catalogos brasil sessao momento sazonal tempo duracao streaming netflix prime disney max globoplay apple paramount crunchyroll";
     case AJ_BC_DNS: return "dns doh cloudflare google 1.1.1.1 8.8.8.8 bloqueio operadora internet rede anti-bloqueio";
     case AJ_HERO_DURACAO: return "duracao tempo destaque hero runtime minutos horas esconder mostrar";
     case AJ_HERO_TRAILER: return "trailer trailers destaque topo hero autoplay automatico";
