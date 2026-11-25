@@ -158,7 +158,7 @@ void perfis_esquecer(void);
 // Perfis locais da conta BestCine TV (ate 6 pessoas usando a mesma conta
 // BestCine na mesma TV, cada uma com seu historico, salvos, favoritos e Trakt,
 // herdando automaticamente o catalogo da conta BestCine).
-void perfis_bc_garantir_padrao(const char *nomeConta);
+void perfis_bc_garantir_padrao(const char *nomeConta, const char *avatarConta);
 int  perfis_bc_criar(const char *nome);
 int  perfis_bc_remover(int slot);
 

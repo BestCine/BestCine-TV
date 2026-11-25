@@ -73,6 +73,7 @@ static long expiraEm;             // `exp` do JWT, em segundos
 static int  bcAtiva;
 static char bcToken[96];
 static char bcNome[128];
+static char bcAvatar[300];
 static char bcEmail[160];
 static char bcPlano[48];
 static char bcVencimento[48];
@@ -259,8 +260,8 @@ static void erroServidor(int st) {
 static void gravarSessao(void) {
   char buf[6400];
   if (bcAtiva && bcToken[0]) {
-    snprintf(buf, sizeof buf, "BESTCINE_V1\n%s\n%s\n%s\n%s\n%s\n%s\n",
-             bcToken, sub, bcNome, bcEmail, bcPlano, bcVencimento);
+    snprintf(buf, sizeof buf, "BESTCINE_V1\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n",
+             bcToken, sub, bcNome, bcEmail, bcPlano, bcVencimento, bcAvatar);
   } else {
     snprintf(buf, sizeof buf, "%s\n%s\n%d\n", acesso, renovar, anonima ? 1 : 0);
   }
@@ -279,7 +280,7 @@ static void limpar(void) {
   anonima = 0;
   expiraEm = 0;
   bcAtiva = 0;
-  bcToken[0] = bcNome[0] = bcEmail[0] = bcPlano[0] = bcVencimento[0] = 0;
+  bcToken[0] = bcNome[0] = bcAvatar[0] = bcEmail[0] = bcPlano[0] = bcVencimento[0] = 0;
   if (mudou) nv_perfil_sessao_destravar();
 }
 
@@ -294,16 +295,17 @@ static void limparQuebrasLinha(char *s) {
 // Devolve 1 = salvo OK, -1 = conta banida (erroOut preenchido), 0 = JSON invalido.
 static int aplicarUsuarioBestCine(const char *corpo, char *erroOut, size_t erroTam) {
   const char *u, *fim;
-  char tok[96], nome[128], em[160], pl[48], venc[48], motivo[180], novoSub[80];
+  char tok[96], nome[128], av[300], em[160], pl[48], venc[48], motivo[180], novoSub[80];
   long uid = 0;
   int banido = 0;
   if (!corpo || !*corpo) return 0;
   fim = corpo + strlen(corpo);
   u = strstr(corpo, "\"usuario\"");
   if (!u) u = corpo;
-  tok[0] = nome[0] = em[0] = pl[0] = venc[0] = motivo[0] = 0;
+  tok[0] = nome[0] = av[0] = em[0] = pl[0] = venc[0] = motivo[0] = 0;
   js_texto(u, fim, "token_instalacao", tok, sizeof tok);
   js_texto(u, fim, "nome", nome, sizeof nome);
+  js_texto(u, fim, "avatar", av, sizeof av);
   js_texto(u, fim, "email", em, sizeof em);
   js_texto(u, fim, "plano", pl, sizeof pl);
   js_texto(u, fim, "vencimento_apoio", venc, sizeof venc);
@@ -320,9 +322,12 @@ static int aplicarUsuarioBestCine(const char *corpo, char *erroOut, size_t erroT
   }
   if (!tok[0] || strncmp(tok, "bc_", 3) != 0) return 0;
   limparQuebrasLinha(nome);
+  limparQuebrasLinha(av);
   limparQuebrasLinha(em);
   limparQuebrasLinha(pl);
   limparQuebrasLinha(venc);
+  if (!strcmp(av, "null") || (strncmp(av, "https://", 8) != 0 && strncmp(av, "http://", 7) != 0))
+    av[0] = 0;
   if (!pl[0]) snprintf(pl, sizeof pl, "gratuito");
   if (!strcmp(venc, "null")) venc[0] = 0;
   if (uid > 0) snprintf(novoSub, sizeof novoSub, "bc_%ld", uid);
@@ -342,6 +347,7 @@ static int aplicarUsuarioBestCine(const char *corpo, char *erroOut, size_t erroT
   snprintf(acesso, sizeof acesso, "%s", tok);
   renovar[0] = 0;
   snprintf(bcNome, sizeof bcNome, "%s", nome[0] ? nome : "Conta BestCine");
+  snprintf(bcAvatar, sizeof bcAvatar, "%s", av);
   snprintf(bcEmail, sizeof bcEmail, "%s", em);
   snprintf(bcPlano, sizeof bcPlano, "%s", pl);
   snprintf(bcVencimento, sizeof bcVencimento, "%s", venc);
@@ -834,9 +840,9 @@ void sessao_iniciar(void) {
   if (!buf) return;
   if (!strncmp(buf, "BESTCINE_V1\n", 12)) {
     char *p = buf + 12;
-    char *linhas[6] = {0};
+    char *linhas[7] = {0};
     int k = 0;
-    while (k < 6 && p && *p) {
+    while (k < 7 && p && *p) {
       linhas[k++] = p;
       p = strchr(p, '\n');
       if (p) *p++ = 0;
@@ -852,6 +858,10 @@ void sessao_iniciar(void) {
       snprintf(bcEmail, sizeof bcEmail, "%s", linhas[3] ? linhas[3] : "");
       snprintf(bcPlano, sizeof bcPlano, "%s", (linhas[4] && linhas[4][0]) ? linhas[4] : "gratuito");
       snprintf(bcVencimento, sizeof bcVencimento, "%s", linhas[5] ? linhas[5] : "");
+      if (linhas[6] && (!strncmp(linhas[6], "https://", 8) || !strncmp(linhas[6], "http://", 7)))
+        snprintf(bcAvatar, sizeof bcAvatar, "%s", linhas[6]);
+      else
+        bcAvatar[0] = 0;
       estado = SES_LOGADO;
       printf("[sessao] BestCine TV restaurada (%s / %s)\n", bcNome, bcPlano);
     } else {
@@ -910,6 +920,7 @@ const char *sessao_usuario(void)  { return sub; }
 int         sessao_bc_ativa(void)      { return bcAtiva && bcToken[0] != 0; }
 const char *sessao_bc_token(void)      { return bcToken; }
 const char *sessao_bc_nome(void)       { return bcNome; }
+const char *sessao_bc_avatar(void)     { return bcAvatar; }
 const char *sessao_bc_email(void)      { return bcEmail; }
 const char *sessao_bc_plano(void)      { return bcPlano; }
 const char *sessao_bc_vencimento(void) { return bcVencimento; }

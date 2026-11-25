@@ -807,7 +807,7 @@ static void gifReset(void);
 
 void perfilsel_iniciar(void) {
   int i;
-  if (sessao_bc_ativa()) perfis_bc_garantir_padrao(sessao_bc_nome());
+  if (sessao_bc_ativa()) perfis_bc_garantir_padrao(sessao_bc_nome(), sessao_bc_avatar());
   gifReset();
 #ifdef NV_TOUCH_UI
   psToqueX = 0.0f; psToqueLivre = 0;

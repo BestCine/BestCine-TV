@@ -48,6 +48,7 @@ const char *sessao_usuario(void);         // `sub` do JWT ou `bc_<id>`; "" quand
 int         sessao_bc_ativa(void);
 const char *sessao_bc_token(void);
 const char *sessao_bc_nome(void);
+const char *sessao_bc_avatar(void);
 const char *sessao_bc_email(void);
 const char *sessao_bc_plano(void);
 const char *sessao_bc_vencimento(void);

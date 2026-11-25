@@ -1331,7 +1331,7 @@ static void *rodar(void *u) {
       PRONTO_PUBLICAR(fioPronto, 1);
       return NULL;
     }
-    perfis_bc_garantir_padrao(sessao_bc_nome());
+    perfis_bc_garantir_padrao(sessao_bc_nome(), sessao_bc_avatar());
     if (sessao_bc_manifest_url(manifestUrl, sizeof manifestUrl)) {
       memset(&addonsRem[0], 0, sizeof addonsRem[0]);
       snprintf(addonsRem[0].url, sizeof addonsRem[0].url, "%s", manifestUrl);

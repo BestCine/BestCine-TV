@@ -621,10 +621,14 @@ static void bcTrimNome(const char *src, char *dst, size_t tam) {
   dst[len] = 0;
 }
 
-void perfis_bc_garantir_padrao(const char *nomeConta) {
-  char limpoNome[64];
+void perfis_bc_garantir_padrao(const char *nomeConta, const char *avatarConta) {
+  char limpoNome[64], limpoAvatar[300];
   int i, mudou = 0, ativoExiste = 0;
   bcTrimNome(nomeConta, limpoNome, sizeof limpoNome);
+  if (!strcmp(limpoNome, "Conta BestCine")) limpoNome[0] = 0;
+  bcTrimNome(avatarConta, limpoAvatar, sizeof limpoAvatar);
+  if (strncmp(limpoAvatar, "https://", 8) != 0 && strncmp(limpoAvatar, "http://", 7) != 0)
+    limpoAvatar[0] = 0;
   pthread_once(&sessaoUmaVez, sessaoTravaIniciar);
   pthread_mutex_lock(&sessaoTrava);
   if (n <= 0) {
@@ -635,13 +639,21 @@ void perfis_bc_garantir_padrao(const char *nomeConta) {
     snprintf(lista[0].corHex, sizeof lista[0].corHex, "#1E6BFF");
     snprintf(lista[0].nome, sizeof lista[0].nome, "%s",
              limpoNome[0] ? limpoNome : "Principal");
+    if (limpoAvatar[0])
+      snprintf(lista[0].avatarUrl, sizeof lista[0].avatarUrl, "%s", limpoAvatar);
     n = 1;
     mudou = 1;
-  } else if (limpoNome[0]) {
+  } else {
     int pri = 0;
     for (i = 0; i < n; i++) if (lista[i].primario) { pri = i; break; }
-    if (!lista[pri].nome[0] || !strcmp(lista[pri].nome, "Principal")) {
+    if (limpoNome[0] &&
+        (!lista[pri].nome[0] || !strcmp(lista[pri].nome, "Principal") ||
+         !strcmp(lista[pri].nome, "Conta BestCine"))) {
       snprintf(lista[pri].nome, sizeof lista[pri].nome, "%s", limpoNome);
+      mudou = 1;
+    }
+    if (limpoAvatar[0] && !lista[pri].avatarUrl[0]) {
+      snprintf(lista[pri].avatarUrl, sizeof lista[pri].avatarUrl, "%s", limpoAvatar);
       mudou = 1;
     }
   }

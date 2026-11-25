@@ -1706,7 +1706,7 @@ int main(int argc, char **argv) {
   nuvem_configurar(dirArte);
   sessao_iniciar();
   perfis_carregar_ativo();
-  if (sessao_bc_ativa()) perfis_bc_garantir_padrao(sessao_bc_nome());
+  if (sessao_bc_ativa()) perfis_bc_garantir_padrao(sessao_bc_nome(), sessao_bc_avatar());
   // Vinculos feitos NESTA TV. Vem antes de trakt_carregar (que le o arquivo do
   // pacote) para o vinculo do usuario ganhar do arquivo de quem montou — e num
   // pacote distribuivel esse arquivo nem existe.
