@@ -727,9 +727,26 @@ typedef enum {
   AJ_HERO_PASTA_DETALHES, // Device-local folder hero details, append-only; on by default.
   AJ_BC_CONTA,            // BestCine TV: conta conectada, plano e acao de atualizar catalogos
   AJ_BC_DNS,              // BestCine TV: DNS Anti-Bloqueio DoH (0 Cloudflare, 1 Google, 2 Sistema)
+  AJ_BC_MOMENTO,          // BestCine TV: Sessao do Momento (Dinamico por Horario), ligado por padrao
+  AJ_BC_STR_ATIVO,        // BestCine TV: Catalogos de Streaming (Brasil), desligado por padrao
+  AJ_BC_STR_TIPO,         // BestCine TV: 0 Filmes e Series, 1 So Filmes, 2 So Series
+  AJ_BC_STR_NETFLIX,
+  AJ_BC_STR_PRIME,
+  AJ_BC_STR_DISNEY,
+  AJ_BC_STR_MAX,
+  AJ_BC_STR_GLOBOPLAY,
+  AJ_BC_STR_APPLETV,
+  AJ_BC_STR_PARAMOUNT,
+  AJ_BC_STR_CRUNCHYROLL,
+  AJ_BC_SAZONAL,          // BestCine TV: Catalogo Sazonal Automatico (datas BR), ligado por padrao
+  AJ_BC_TEMPO_ATIVO,      // BestCine TV: Catalogos por Tempo/Duracao, desligado por padrao
+  AJ_BC_TEMPO_RAPIDOS,
+  AJ_BC_TEMPO_MINI,
+  AJ_BC_TEMPO_EPICOS,
   AJ_N
 } OpcaoId;
 static const char *V_BC_DNS[] = { "Cloudflare (1.1.1.1)", "Google (8.8.8.8)", "DNS do sistema" };
+static const char *V_BC_STR_TIPO[] = { "Filmes e Séries", "Só Filmes", "Só Séries" };
 _Static_assert(DEBRID_RD == 0 && DEBRID_TB == 1 && DEBRID_PM == 2 && DEBRID_AD == 3,
                "Native provider Settings caps retain their persisted service IDs");
 
@@ -1868,6 +1885,22 @@ static const Opcao OPCOES[AJ_N] = {
   ESC("Mostrar detalhes da pasta no destaque", V_LIGA, 2),
   ACAO("Conta BestCine"),
   ESC("DNS Anti-Bloqueio (DoH)", V_BC_DNS, 3),
+  ESC("Sessão do Momento (Dinâmico)", V_LIGA, 2),
+  ESC("Catálogos de Streaming (Brasil)", V_LIGA, 2),
+  ESC("Tipos de streaming", V_BC_STR_TIPO, 3),
+  ESC("Netflix", V_LIGA, 2),
+  ESC("Prime Video", V_LIGA, 2),
+  ESC("Disney+", V_LIGA, 2),
+  ESC("Max", V_LIGA, 2),
+  ESC("Globoplay", V_LIGA, 2),
+  ESC("Apple TV+", V_LIGA, 2),
+  ESC("Paramount+", V_LIGA, 2),
+  ESC("Crunchyroll", V_LIGA, 2),
+  ESC("Catálogo Sazonal Automático", V_LIGA, 2),
+  ESC("Catálogos por Tempo / Duração", V_LIGA, 2),
+  ESC("Filmes Rápidos (até 90 min)", V_LIGA, 2),
+  ESC("Séries Curtas & Minisséries", V_LIGA, 2),
+  ESC("Épicos & Maratonas (+2h30)", V_LIGA, 2),
 };
 
 // Nome de cada opcao no arquivo. O formato era POSICIONAL — uma linha por
@@ -2203,6 +2236,22 @@ static const char *CHAVE[] = {
   "heroFolderDetailsLocal",
   "-bestcineConta",
   "bestcineDnsLocal",
+  "bestcineMomentoLocal",
+  "bestcineStreamingAtivoLocal",
+  "bestcineStreamingTipoLocal",
+  "bestcineStrNetflixLocal",
+  "bestcineStrPrimeLocal",
+  "bestcineStrDisneyLocal",
+  "bestcineStrMaxLocal",
+  "bestcineStrGloboplayLocal",
+  "bestcineStrAppleTvLocal",
+  "bestcineStrParamountLocal",
+  "bestcineStrCrunchyrollLocal",
+  "bestcineSazonalLocal",
+  "bestcineTempoAtivoLocal",
+  "bestcineTempoRapidosLocal",
+  "bestcineTempoMiniLocal",
+  "bestcineTempoEpicosLocal",
 };
 // QUATRO VETORES PARALELOS indexados pelo mesmo enum AJ_*: OPCOES, CHAVE,
 // valor e as secoes. OPCOES ja e declarado [AJ_N], e `valor` aceita inicializacao
@@ -3601,6 +3650,30 @@ int ajustes_hero_ano(void)     { return lig(AJ_HERO_ANO); }
 int ajustes_hero_duracao(void) { return lig(AJ_HERO_DURACAO); }
 int ajustes_hero_pasta_detalhes(void) { return lig(AJ_HERO_PASTA_DETALHES); }
 int ajustes_bc_dns(void) { int v = valor[AJ_BC_DNS]; return (v >= 0 && v <= 2) ? v : 0; }
+int ajustes_bc_momento(void) { return lig(AJ_BC_MOMENTO); }
+int ajustes_bc_sazonal(void) { return lig(AJ_BC_SAZONAL); }
+int ajustes_bc_tempo_ativo(void) { return lig(AJ_BC_TEMPO_ATIVO); }
+unsigned ajustes_bc_tempo_mascara(void) {
+  unsigned m = 0;
+  if (lig(AJ_BC_TEMPO_RAPIDOS)) m |= (1u << 0);
+  if (lig(AJ_BC_TEMPO_MINI))    m |= (1u << 1);
+  if (lig(AJ_BC_TEMPO_EPICOS))  m |= (1u << 2);
+  return m;
+}
+int ajustes_bc_str_ativo(void) { return lig(AJ_BC_STR_ATIVO); }
+int ajustes_bc_str_tipo(void) { int v = valor[AJ_BC_STR_TIPO]; return (v >= 0 && v <= 2) ? v : 0; }
+unsigned ajustes_bc_str_mascara(void) {
+  unsigned m = 0;
+  if (lig(AJ_BC_STR_NETFLIX))     m |= (1u << 0);
+  if (lig(AJ_BC_STR_PRIME))       m |= (1u << 1);
+  if (lig(AJ_BC_STR_DISNEY))      m |= (1u << 2);
+  if (lig(AJ_BC_STR_MAX))         m |= (1u << 3);
+  if (lig(AJ_BC_STR_GLOBOPLAY))   m |= (1u << 4);
+  if (lig(AJ_BC_STR_APPLETV))     m |= (1u << 5);
+  if (lig(AJ_BC_STR_PARAMOUNT))   m |= (1u << 6);
+  if (lig(AJ_BC_STR_CRUNCHYROLL)) m |= (1u << 7);
+  return m;
+}
 int ajustes_hero_cheio(void)          { return lig(AJ_HERO_CHEIO); }
 int ajustes_hero_sinopse_grande(void) { return valor[AJ_HERO_SINOPSE_TAM] == 1 || ajustes_hero_tamanho() > 0; }
 float ajustes_hero_escala_logo(void) { static const float e[3] = { 1.0f, 1.25f, 1.5f }; return e[ajustes_hero_tamanho()]; }
@@ -6028,6 +6101,12 @@ static int somenteDesteAparelho(int op) {
     case AJ_HERO_TAMANHO:
     case AJ_HERO_PASTA_DETALHES:
     case AJ_BC_DNS:
+    case AJ_BC_MOMENTO: case AJ_BC_STR_ATIVO: case AJ_BC_STR_TIPO:
+    case AJ_BC_STR_NETFLIX: case AJ_BC_STR_PRIME: case AJ_BC_STR_DISNEY:
+    case AJ_BC_STR_MAX: case AJ_BC_STR_GLOBOPLAY: case AJ_BC_STR_APPLETV:
+    case AJ_BC_STR_PARAMOUNT: case AJ_BC_STR_CRUNCHYROLL:
+    case AJ_BC_SAZONAL: case AJ_BC_TEMPO_ATIVO:
+    case AJ_BC_TEMPO_RAPIDOS: case AJ_BC_TEMPO_MINI: case AJ_BC_TEMPO_EPICOS:
     case AJ_HERO_ARTE_DIF:
     case AJ_HERO_GENERO:
     case AJ_HERO_SINOPSE: case AJ_HERO_NOTAS: case AJ_HERO_ANO: case AJ_HERO_DURACAO: /* o web nao tem */
@@ -7454,6 +7533,13 @@ static int inativa(int op) {
     case AJ_CW_NAO_EXIBIDOS: case AJ_CW_ORDEM: case AJ_CW_CONCLUIDO: case AJ_CW_MINIMO: case AJ_CW_RETIDO_TAMBEM:
       return !ajustes_cw_ligado();
     case AJ_CW_BLUR_PROX: return !ajustes_cw_ligado() || !ajustes_cw_thumb_episodio();
+    case AJ_BC_STR_TIPO:
+    case AJ_BC_STR_NETFLIX: case AJ_BC_STR_PRIME: case AJ_BC_STR_DISNEY:
+    case AJ_BC_STR_MAX: case AJ_BC_STR_GLOBOPLAY: case AJ_BC_STR_APPLETV:
+    case AJ_BC_STR_PARAMOUNT: case AJ_BC_STR_CRUNCHYROLL:
+      return !lig(AJ_BC_STR_ATIVO);
+    case AJ_BC_TEMPO_RAPIDOS: case AJ_BC_TEMPO_MINI: case AJ_BC_TEMPO_EPICOS:
+      return !lig(AJ_BC_TEMPO_ATIVO);
     case AJ_EXPANDIR_ATRASO: return !ajustes_expandir_poster();
     case AJ_SEEKR_FITA: case AJ_SEEKR_AJUSTE: return !lig(AJ_SEEKR_LIGADO);
     case AJ_FONTE_GRUPO_SESSOES: return !lig(AJ_FONTE_GRUPO);
@@ -8110,6 +8196,18 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_PERFIL_ATIVO: return "Perfil em uso nesta TV. Trocar de perfil é feito na tela de perfis, ao abrir o app.";
     case AJ_BC_CONTA: return "Sua conta BestCine conectada nesta TV. Pressione OK para atualizar sua assinatura e os catálogos BestCine agora.";
     case AJ_BC_DNS: return "Ignora o DNS bloqueado da operadora usando DNS criptografado (DoH). Cloudflare 1.1.1.1 é recomendado contra bloqueios.";
+    case AJ_BC_MOMENTO: return "Fileira inteligente que muda sozinha com o horário do dia: Manhã Leve (Animações & Família), Tarde Pipoca (Aventura & Ação), Noite de Estreia (Lançamentos) e Madrugada Adrenalina (Terror & Suspense).";
+    case AJ_BC_STR_ATIVO: return "Adiciona fileiras opcionais de plataformas de streaming do Brasil via TMDB. Desligado por padrão para preservar desempenho em TVs mais antigas.";
+    case AJ_BC_STR_TIPO: return "Define se as plataformas de streaming marcadas abaixo mostram Filmes, Séries ou ambos na Tela Inicial.";
+    case AJ_BC_STR_NETFLIX: case AJ_BC_STR_PRIME: case AJ_BC_STR_DISNEY:
+    case AJ_BC_STR_MAX: case AJ_BC_STR_GLOBOPLAY: case AJ_BC_STR_APPLETV:
+    case AJ_BC_STR_PARAMOUNT: case AJ_BC_STR_CRUNCHYROLL:
+      return "Ativa ou desativa a fileira desta plataforma no catálogo do Brasil (via TMDB). Ativar de 3 a 6 fileiras garante abertura mais rápida.";
+    case AJ_BC_SAZONAL: return "Exibe uma fileira especial apenas perto de datas comemorativas do Brasil (Natal, Halloween, Dia das Mães, Pais, Namorados, Crianças e Férias). Fora dessas datas não consome rede.";
+    case AJ_BC_TEMPO_ATIVO: return "Adiciona fileiras opcionais por duração: filmes rápidos (até 90 min), minisséries curtas e épicos (+2h30). Desligado por padrão.";
+    case AJ_BC_TEMPO_RAPIDOS: return "Filmes bem avaliados com até 90 minutos, ideais para quando você tem pouco tempo.";
+    case AJ_BC_TEMPO_MINI: return "Minisséries e séries curtas bem avaliadas no TMDB para maratonar rápido.";
+    case AJ_BC_TEMPO_EPICOS: return "Grandes produções e épicos com mais de 2 horas e meia de duração.";
     case AJ_SYNC: return "Estado da última sincronização com o BestCine. Pressione OK para atualizar os catálogos agora.";
     case AJ_ADDONS: return "Abre a lista de addons da sua conta, para ligar e desligar cada um nesta TV.";
     case AJ_PLUGINS: return "Scrapers em JavaScript dos repositórios de plugins do Nuvio, como mais uma fonte na lista, ao lado dos add-ons. Os repositórios vêm da sua conta. Desligado por padrão.";
@@ -9702,6 +9800,10 @@ static int definirValorDireto(int op, int novo) {
   if (op == AJ_TEX_MB) tex_definir_orcamento_mb(ajustes_tex_mb());
   if (op == AJ_EPG_MEMORIA) ajEpgMemoriaAplicar();
   if (op == AJ_BC_DNS) rede_definir_dns(novo);
+  if (op == AJ_BC_MOMENTO || op == AJ_BC_SAZONAL || op == AJ_BC_TEMPO_ATIVO ||
+      (op >= AJ_BC_TEMPO_RAPIDOS && op <= AJ_BC_TEMPO_EPICOS) ||
+      op == AJ_BC_STR_ATIVO || op == AJ_BC_STR_TIPO ||
+      (op >= AJ_BC_STR_NETFLIX && op <= AJ_BC_STR_CRUNCHYROLL)) desc_repetir();
   // Picking 4K again = try again: forget that this TV did not hold it.
   if (op == AJ_RESOLUCAO && novo == RES_4K) {
     char *m = dados_ler(RES_ARQ_RECUO);
@@ -10820,6 +10922,12 @@ static AjPreview familiaPreviaOpcao(int op) {
     case AJ_PS_FUNDO: case AJ_PS_CONTINUAR: case AJ_DESCOBRIR: case AJ_ROTULOS:
     case AJ_NOME_ADDON: case AJ_SUFIXO_TIPO: case AJ_OCULTAR_NLANC: case AJ_MURAL_TITULOS:
     case AJ_NOTAS_HOME: case AJ_GRAD_CLASSICO: case AJ_SELO_VISTO: case AJ_OCULTAR_FILMES_VISTOS: case AJ_BIB_HOME: case AJ_TITULO_FIL:
+    case AJ_BC_MOMENTO: case AJ_BC_STR_ATIVO: case AJ_BC_STR_TIPO:
+    case AJ_BC_STR_NETFLIX: case AJ_BC_STR_PRIME: case AJ_BC_STR_DISNEY:
+    case AJ_BC_STR_MAX: case AJ_BC_STR_GLOBOPLAY: case AJ_BC_STR_APPLETV:
+    case AJ_BC_STR_PARAMOUNT: case AJ_BC_STR_CRUNCHYROLL:
+    case AJ_BC_SAZONAL: case AJ_BC_TEMPO_ATIVO:
+    case AJ_BC_TEMPO_RAPIDOS: case AJ_BC_TEMPO_MINI: case AJ_BC_TEMPO_EPICOS:
       return AJPV_HOME;
     case AJ_CW_LIGADO: case AJ_CW_OK: case AJ_CW_FONTE:
     case AJ_CW_ESTILO: case AJ_CW_THUMB: case AJ_CW_BLUR_PROX:

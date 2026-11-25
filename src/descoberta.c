@@ -1490,6 +1490,372 @@ static int deMeta(const char *ini, const char *fim, const char *tipo, CatItem *d
   return 1;
 }
 
+// --- BestCine: Sessao do Momento (Dinamico por Horario) e Catalogos de Streaming (Brasil) ---
+// Consultas oficiais ao TMDB Discover rodando direto na TV, com cache em memoria
+// sob demanda (zero alocacao quando os catalogos de streaming estao desligados).
+#define BC_TMDB_CAT_BASE "bestcine://tmdb-br"
+#define BC_TMDB_CAT_ADDON "bestcine_tmdb_br"
+#define BC_TMDB_MOMENTO_ID "sessao_momento"
+#define BC_TMDB_SAZONAL_ID "especial_sazonal"
+#define BC_TMDB_TEMPO_RAPIDOS_ID "tempo_rapidos"
+#define BC_TMDB_TEMPO_MINI_ID "tempo_miniseries"
+#define BC_TMDB_TEMPO_EPICOS_ID "tempo_epicos"
+#define BC_TMDB_CACHE_SLOTS 32
+#define BC_TMDB_CACHE_ITENS 24
+
+typedef struct {
+  const char *slug;
+  const char *nome;
+  int tmdbId;
+  const char *monet;
+} BcStrProv;
+
+static const BcStrProv BC_STR_PROVS[8] = {
+  { "netflix",     "Netflix",     8,    "flatrate" },
+  { "prime",       "Prime Video", 119,  "flatrate" },
+  { "disney",      "Disney+",     337,  "flatrate" },
+  { "max",         "Max",         1899, "flatrate" },
+  { "globoplay",   "Globoplay",   307,  "flatrate|free|ads" },
+  { "appletv",     "Apple TV+",   350,  "flatrate" },
+  { "paramount",   "Paramount+",  531,  "flatrate" },
+  { "crunchyroll", "Crunchyroll", 283,  "flatrate|free|ads" },
+};
+
+typedef struct {
+  char chave[96];
+  time_t salvoEm;
+  int ttlSeg;
+  int semMais;
+  int n;
+  CatItem *itens;
+} BcTmdbCacheSlot;
+
+static pthread_mutex_t bcTmdbCacheTrava = PTHREAD_MUTEX_INITIALIZER;
+static BcTmdbCacheSlot bcTmdbCache[BC_TMDB_CACHE_SLOTS];
+
+static int deMetaTmdb(const char *p, const char *f, const char *tipoPadrao, CatItem *d);
+
+static void bcLocalTime(struct tm *out) {
+  time_t agora = time(NULL);
+#ifdef _WIN32
+  localtime_s(out, &agora);
+#else
+  localtime_r(&agora, out);
+#endif
+}
+
+static void bcMomentoPeriodo(const char **idOut, const char **rotuloOut,
+                             const char **generosOut, const char **notaMinOut,
+                             int *votosMinOut, int *recenteOut) {
+  struct tm tmLocal;
+  bcLocalTime(&tmLocal);
+  int hora = tmLocal.tm_hour;
+  if (hora >= 6 && hora < 12) {
+    if (idOut) *idOut = "manha";
+    if (rotuloOut) *rotuloOut = "Manhã Leve";
+    if (generosOut) *generosOut = "16|10751";
+    if (notaMinOut) *notaMinOut = "6.4";
+    if (votosMinOut) *votosMinOut = 120;
+    if (recenteOut) *recenteOut = 0;
+  } else if (hora >= 12 && hora < 18) {
+    if (idOut) *idOut = "tarde";
+    if (rotuloOut) *rotuloOut = "Tarde Pipoca";
+    if (generosOut) *generosOut = "12|28";
+    if (notaMinOut) *notaMinOut = "6.2";
+    if (votosMinOut) *votosMinOut = 150;
+    if (recenteOut) *recenteOut = 0;
+  } else if (hora >= 18) {
+    if (idOut) *idOut = "noite";
+    if (rotuloOut) *rotuloOut = "Noite de Estreia";
+    if (generosOut) *generosOut = NULL;
+    if (notaMinOut) *notaMinOut = "6.2";
+    if (votosMinOut) *votosMinOut = 120;
+    if (recenteOut) *recenteOut = 1;
+  } else {
+    if (idOut) *idOut = "madrugada";
+    if (rotuloOut) *rotuloOut = "Madrugada Adrenalina";
+    if (generosOut) *generosOut = "27|53";
+    if (notaMinOut) *notaMinOut = "6.0";
+    if (votosMinOut) *votosMinOut = 120;
+    if (recenteOut) *recenteOut = 0;
+  }
+}
+
+static int bcSazonalAtual(const char **idOut, const char **tituloOut, const char **subOut,
+                          const char **generosOut, const char **keywordsOut,
+                          const char **notaMinOut, int *votosMinOut) {
+  struct tm tmLocal;
+  bcLocalTime(&tmLocal);
+  int md = (tmLocal.tm_mon + 1) * 100 + tmLocal.tm_mday;
+  if (md >= 501 && md <= 515) {
+    if (idOut) *idOut = "dia_das_maes";
+    if (tituloOut) *tituloOut = "Especial Dia das Mães";
+    if (subOut) *subOut = "Família & Drama";
+    if (generosOut) *generosOut = "10751,18";
+    if (keywordsOut) *keywordsOut = NULL;
+    if (notaMinOut) *notaMinOut = "6.8";
+    if (votosMinOut) *votosMinOut = 120;
+    return 1;
+  }
+  if (md >= 605 && md <= 614) {
+    if (idOut) *idOut = "dia_dos_namorados";
+    if (tituloOut) *tituloOut = "Especial Dia dos Namorados";
+    if (subOut) *subOut = "Romance";
+    if (generosOut) *generosOut = "10749";
+    if (keywordsOut) *keywordsOut = NULL;
+    if (notaMinOut) *notaMinOut = "6.6";
+    if (votosMinOut) *votosMinOut = 150;
+    return 1;
+  }
+  if (md >= 801 && md <= 815) {
+    if (idOut) *idOut = "dia_dos_pais";
+    if (tituloOut) *tituloOut = "Especial Dia dos Pais";
+    if (subOut) *subOut = "Família & Aventura";
+    if (generosOut) *generosOut = "10751|12";
+    if (keywordsOut) *keywordsOut = NULL;
+    if (notaMinOut) *notaMinOut = "6.8";
+    if (votosMinOut) *votosMinOut = 150;
+    return 1;
+  }
+  if (md >= 1005 && md <= 1014) {
+    if (idOut) *idOut = "dia_das_criancas";
+    if (tituloOut) *tituloOut = "Especial Dia das Crianças";
+    if (subOut) *subOut = "Animações & Família";
+    if (generosOut) *generosOut = "16,10751";
+    if (keywordsOut) *keywordsOut = NULL;
+    if (notaMinOut) *notaMinOut = "6.8";
+    if (votosMinOut) *votosMinOut = 150;
+    return 1;
+  }
+  if (md >= 1015 && md <= 1102) {
+    if (idOut) *idOut = "halloween";
+    if (tituloOut) *tituloOut = "Especial Halloween";
+    if (subOut) *subOut = "Terror & Mistério";
+    if (generosOut) *generosOut = "27|9648";
+    if (keywordsOut) *keywordsOut = NULL;
+    if (notaMinOut) *notaMinOut = "6.2";
+    if (votosMinOut) *votosMinOut = 150;
+    return 1;
+  }
+  if (md >= 1201 && md <= 1227) {
+    if (idOut) *idOut = "natal";
+    if (tituloOut) *tituloOut = "Especial de Natal";
+    if (subOut) *subOut = "Clássicos & Filmes Natalinos";
+    if (generosOut) *generosOut = NULL;
+    if (keywordsOut) *keywordsOut = "207317";
+    if (notaMinOut) *notaMinOut = "5.8";
+    if (votosMinOut) *votosMinOut = 80;
+    return 1;
+  }
+  if (md >= 1228 || md <= 110) {
+    if (idOut) *idOut = "ferias_ano_novo";
+    if (tituloOut) *tituloOut = "Férias & Ano Novo";
+    if (subOut) *subOut = "Comédia & Aventura";
+    if (generosOut) *generosOut = "35|12";
+    if (keywordsOut) *keywordsOut = NULL;
+    if (notaMinOut) *notaMinOut = "6.6";
+    if (votosMinOut) *votosMinOut = 150;
+    return 1;
+  }
+  return 0;
+}
+
+static int bcTempoIndice(const char *id) {
+  if (!id) return -1;
+  if (!strcmp(id, BC_TMDB_TEMPO_RAPIDOS_ID)) return 0;
+  if (!strcmp(id, BC_TMDB_TEMPO_MINI_ID)) return 1;
+  if (!strcmp(id, BC_TMDB_TEMPO_EPICOS_ID)) return 2;
+  return -1;
+}
+
+static int bcQuantosCatalogosAtivos(void) {
+  int total = ajustes_bc_momento() ? 1 : 0;
+  if (ajustes_bc_sazonal() && bcSazonalAtual(NULL, NULL, NULL, NULL, NULL, NULL, NULL))
+    total++;
+  if (ajustes_bc_tempo_ativo()) {
+    unsigned tmask = ajustes_bc_tempo_mascara();
+    for (int i = 0; i < 3; i++)
+      if (tmask & (1u << i)) total++;
+  }
+  if (ajustes_bc_str_ativo()) {
+    unsigned mask = ajustes_bc_str_mascara();
+    int tipo = ajustes_bc_str_tipo();
+    int mult = (tipo == 0) ? 2 : 1;
+    for (int i = 0; i < 8; i++)
+      if (mask & (1u << i)) total += mult;
+  }
+  return total;
+}
+
+static const BcStrProv *bcAcharProv(const char *slug) {
+  if (!slug || !slug[0]) return NULL;
+  for (int i = 0; i < 8; i++)
+    if (!strcmp(BC_STR_PROVS[i].slug, slug)) return &BC_STR_PROVS[i];
+  return NULL;
+}
+
+static int bcLerCatalogoTmdb(const char *tipo, const char *id, int pagina,
+                             CatItem *saida, int max, int quantos,
+                             int *respondeu, int *semMaisOut) {
+  if (respondeu) *respondeu = 0;
+  if (semMaisOut) *semMaisOut = 1;
+  if (!tipo || !id || !saida || max < 1 || quantos < 1) return 0;
+  if (pagina < 1) pagina = 1;
+
+  int ehMomento = !strcmp(id, BC_TMDB_MOMENTO_ID);
+  int ehSazonal = !strcmp(id, BC_TMDB_SAZONAL_ID);
+  int tempoIdx = (!ehMomento && !ehSazonal) ? bcTempoIndice(id) : -1;
+  const BcStrProv *prov = (!ehMomento && !ehSazonal && tempoIdx < 0) ? bcAcharProv(id) : NULL;
+  const char *sazId = "", *sazGen = NULL, *sazKw = NULL, *sazNota = "6.5";
+  int sazVotos = 120;
+  if (ehSazonal && !bcSazonalAtual(&sazId, NULL, NULL, &sazGen, &sazKw, &sazNota, &sazVotos)) return 0;
+  if (!ehMomento && !ehSazonal && tempoIdx < 0 && !prov) return 0;
+
+  const char *chave = desc_chave_tmdb()[0] ? desc_chave_tmdb() : desc_chave_tmdb_reserva();
+  if (!chave || !chave[0]) return 0;
+
+  int ehSerie = (!ehMomento && !ehSazonal) &&
+                (tempoIdx == 1 || (tempoIdx < 0 && (!strcmp(tipo, "series") || !strcmp(tipo, "tv"))));
+  const char *idioma = desc_tmdb_idioma();
+  if (!idioma || !idioma[0]) idioma = "pt-BR";
+
+  const char *perId = "", *generos = NULL, *notaMin = "6.2";
+  int votosMin = 120, recente = 0;
+  if (ehMomento) bcMomentoPeriodo(&perId, NULL, &generos, &notaMin, &votosMin, &recente);
+
+  char cacheChave[96];
+  snprintf(cacheChave, sizeof cacheChave, "%s:%s:%s:%d:%s",
+           ehMomento ? perId : ehSazonal ? sazId : tempoIdx >= 0 ? id : prov->slug,
+           ehSerie ? "tv" : "mv", idioma, pagina,
+           ehMomento ? "m" : ehSazonal ? "z" : tempoIdx >= 0 ? "t" : "s");
+
+  time_t agora = time(NULL);
+  if (pagina <= 2) {
+    pthread_mutex_lock(&bcTmdbCacheTrava);
+    for (int i = 0; i < BC_TMDB_CACHE_SLOTS; i++) {
+      BcTmdbCacheSlot *s = &bcTmdbCache[i];
+      if (s->itens && !strcmp(s->chave, cacheChave) &&
+          agora >= s->salvoEm && (agora - s->salvoEm) < s->ttlSeg) {
+        int copiar = s->n;
+        if (copiar > max) copiar = max;
+        if (copiar > quantos) copiar = quantos;
+        if (copiar > 0) memcpy(saida, s->itens, sizeof(CatItem) * (size_t)copiar);
+        if (respondeu) *respondeu = 1;
+        if (semMaisOut) *semMaisOut = s->semMais;
+        pthread_mutex_unlock(&bcTmdbCacheTrava);
+        return copiar;
+      }
+    }
+    pthread_mutex_unlock(&bcTmdbCacheTrava);
+  }
+
+  char url[1024];
+  if (ehMomento) {
+    char extra[256] = "";
+    if (generos && generos[0]) {
+      snprintf(extra, sizeof extra, "&with_genres=%s", generos);
+    } else if (recente) {
+      struct tm tmLocal;
+      bcLocalTime(&tmLocal);
+      int ano = tmLocal.tm_year + 1900;
+      snprintf(extra, sizeof extra,
+               "&primary_release_date.gte=%04d-01-01&primary_release_date.lte=%04d-%02d-%02d",
+               ano - 1, ano, tmLocal.tm_mon + 1, tmLocal.tm_mday);
+    }
+    snprintf(url, sizeof url,
+             "https://api.themoviedb.org/3/discover/movie?api_key=%s&language=%s"
+             "&region=BR&sort_by=popularity.desc&include_adult=false"
+             "&vote_average.gte=%s&vote_count.gte=%d%s&page=%d",
+             chave, idioma, notaMin, votosMin, extra, pagina);
+  } else if (ehSazonal) {
+    char extra[256] = "";
+    if (sazGen && sazGen[0]) snprintf(extra, sizeof extra, "&with_genres=%s", sazGen);
+    else if (sazKw && sazKw[0]) snprintf(extra, sizeof extra, "&with_keywords=%s", sazKw);
+    snprintf(url, sizeof url,
+             "https://api.themoviedb.org/3/discover/movie?api_key=%s&language=%s"
+             "&region=BR&sort_by=popularity.desc&include_adult=false"
+             "&vote_average.gte=%s&vote_count.gte=%d%s&page=%d",
+             chave, idioma, sazNota, sazVotos, extra, pagina);
+  } else if (tempoIdx >= 0) {
+    const char *filtro = tempoIdx == 0
+      ? "&with_runtime.gte=65&with_runtime.lte=90&vote_average.gte=6.3&vote_count.gte=150"
+      : tempoIdx == 1
+        ? "&with_type=2&vote_average.gte=7.0&vote_count.gte=80"
+        : "&with_runtime.gte=150&vote_average.gte=6.8&vote_count.gte=250";
+    snprintf(url, sizeof url,
+             "https://api.themoviedb.org/3/discover/%s?api_key=%s&language=%s"
+             "&region=BR&sort_by=popularity.desc&include_adult=false%s&page=%d",
+             ehSerie ? "tv" : "movie", chave, idioma, filtro, pagina);
+  } else {
+    snprintf(url, sizeof url,
+             "https://api.themoviedb.org/3/discover/%s?api_key=%s&language=%s"
+             "&watch_region=BR&with_watch_providers=%d&with_watch_monetization_types=%s"
+             "&sort_by=popularity.desc&include_adult=false&page=%d",
+             ehSerie ? "tv" : "movie", chave, idioma,
+             prov->tmdbId, prov->monet, pagina);
+  }
+
+  char *corpo = rede_baixar(url, 8);
+  if (!corpo) return 0;
+  if (respondeu) *respondeu = 1;
+
+  long pagResp = (long)js_num(corpo, NULL, "page", (double)pagina);
+  long totPag = (long)js_num(corpo, NULL, "total_pages", (double)pagina);
+  if (totPag > 25) totPag = 25;
+  int semMais = (pagResp >= totPag);
+
+  CatItem *tmp = calloc(BC_TMDB_CACHE_ITENS, sizeof *tmp);
+  int nTmp = 0;
+  int nOut = 0;
+  const char *p = js_array(corpo, NULL, "results");
+  while (p) {
+    const char *f = js_fim(p);
+    CatItem it;
+    if (deMetaTmdb(p, f, ehSerie ? "series" : "movie", &it) && !descOcultaNaoLancado(&it)) {
+      snprintf(it.origem, sizeof it.origem, "%s", BC_TMDB_CAT_ADDON);
+      int dup = 0;
+      for (int j = 0; j < nOut; j++)
+        if (!strcmp(saida[j].imdb, it.imdb)) { dup = 1; break; }
+      if (!dup) {
+        if (tmp && nTmp < BC_TMDB_CACHE_ITENS) tmp[nTmp++] = it;
+        if (nOut < max && nOut < quantos) saida[nOut++] = it;
+      }
+    }
+    p = js_prox(f);
+  }
+  free(corpo);
+
+  if (nOut == 0) semMais = 1;
+  if (semMaisOut) *semMaisOut = semMais;
+
+  if (tmp && nTmp > 0 && pagina <= 2) {
+    pthread_mutex_lock(&bcTmdbCacheTrava);
+    int slot = -1;
+    time_t maisVelho = agora + 1;
+    for (int i = 0; i < BC_TMDB_CACHE_SLOTS; i++) {
+      if (bcTmdbCache[i].itens && !strcmp(bcTmdbCache[i].chave, cacheChave)) { slot = i; break; }
+      if (!bcTmdbCache[i].itens && slot < 0) slot = i;
+    }
+    if (slot < 0) {
+      slot = 0;
+      for (int i = 0; i < BC_TMDB_CACHE_SLOTS; i++)
+        if (bcTmdbCache[i].salvoEm < maisVelho) { maisVelho = bcTmdbCache[i].salvoEm; slot = i; }
+    }
+    free(bcTmdbCache[slot].itens);
+    bcTmdbCache[slot].itens = tmp;
+    bcTmdbCache[slot].n = nTmp;
+    bcTmdbCache[slot].semMais = semMais;
+    bcTmdbCache[slot].salvoEm = agora;
+    bcTmdbCache[slot].ttlSeg = ehMomento ? 7200 : 21600;
+    snprintf(bcTmdbCache[slot].chave, sizeof bcTmdbCache[slot].chave, "%s", cacheChave);
+    pthread_mutex_unlock(&bcTmdbCacheTrava);
+  } else {
+    free(tmp);
+  }
+
+  return nOut;
+}
+
 // Le um catalogo (movie|series) de um addon e acrescenta ao vetor.
 //
 // `respondeu` (pode ser NULL) separa os dois zeros que sairiam iguais: 0 com
@@ -1503,6 +1869,8 @@ static int lerCatalogo(const char *base, const char *tipo, const char *id,
   const char *p;
   int n = 0;
   if (respondeu) *respondeu = 0;
+  if (base && !strcmp(base, BC_TMDB_CAT_BASE))
+    return bcLerCatalogoTmdb(tipo, id, 1, saida, max, quantos, respondeu, NULL);
   if (addons_base_desligada(base)) return 0;   // desligado na conta: nenhuma rede
   if (!descPedidoCoube(base, catalogoUrl(url, sizeof url, base, tipo, id, ""),
                        sizeof url)) return 0;
@@ -1543,6 +1911,8 @@ static int lerCatalogoHomeParcial(const char *base, const char *tipo, const char
                            int (*primeira)(const CatItem *, int, void *), void *usuario) {
   int n = 0, visiveis = 0, skip = 0;
   char orig[96];
+  if (base && !strcmp(base, BC_TMDB_CAT_BASE))
+    return bcLerCatalogoTmdb(tipo, id, 1, saida, max, quantos, respondeu, NULL);
   if (!ajustes_ocultar_filmes_vistos() || strcmp(tipo, "movie"))
     return lerCatalogo(base, tipo, id, saida, max, quantos, respondeu);
   if (max > HOME_VISTOS_MAX) max = HOME_VISTOS_MAX;
@@ -4085,7 +4455,7 @@ static int ordenarCandidatos(Decl *decls, int nDecl, int *ordem, int nFixas,
   // rede, e nao o desenho: sete fileiras tem de custar sete GET, senao o
   // ajuste economiza pixel e nao trabalho. As fixas nao fazem GET e nao
   // consomem a cota de catalogos.
-  int teto = fil_limite() + nFixas;
+  int teto = fil_limite() + nFixas + bcQuantosCatalogosAtivos();
   if (teto > CAT_FIL_MAX) teto = CAT_FIL_MAX;
   if (tetoSaida) *tetoSaida = teto;
 
@@ -4844,6 +5214,104 @@ static void *montar(void *u) {
       if (cortados)
         printf("[desc] %d catalogo(s) so respondem com busca e nao viram fileira\n", cortados);
       nDecl = w2; }
+    // Injeta os catalogos nativos do BestCine via TMDB Discover (Sessao do Momento
+    // e Streaming Brasil opcionais) antes da ordenacao e do registro de fileiras.
+    {
+      if (ajustes_bc_momento() && nDecl < DECL_MAX) {
+        const char *perRotulo = "Noite de Estreia";
+        bcMomentoPeriodo(NULL, &perRotulo, NULL, NULL, NULL, NULL);
+        Decl d;
+        memset(&d, 0, sizeof d);
+        snprintf(d.chave, sizeof d.chave, "%s_movie_%s", BC_TMDB_CAT_ADDON, BC_TMDB_MOMENTO_ID);
+        snprintf(d.desativar, sizeof d.desativar, "%s_movie_%s", BC_TMDB_CAT_BASE, BC_TMDB_MOMENTO_ID);
+        snprintf(d.titulo, sizeof d.titulo, "Sessão do Momento • %s", perRotulo);
+        snprintf(d.tipo, sizeof d.tipo, "movie");
+        snprintf(d.id, sizeof d.id, "%s", BC_TMDB_MOMENTO_ID);
+        snprintf(d.base, sizeof d.base, "%s", BC_TMDB_CAT_BASE);
+        snprintf(d.nomeAddon, sizeof d.nomeAddon, "BestCine Dinâmico");
+        d.paginavel = 1;
+        // Insere logo apos os primeiros catalogos principais (ou no topo se houver poucos)
+        int pos = nDecl > 2 ? 2 : nDecl;
+        if (pos < nDecl) memmove(&decls[pos + 1], &decls[pos], sizeof(Decl) * (size_t)(nDecl - pos));
+        decls[pos] = d;
+        nDecl++;
+      }
+      if (ajustes_bc_sazonal() && nDecl < DECL_MAX) {
+        const char *sazTit = NULL, *sazSub = NULL;
+        if (bcSazonalAtual(NULL, &sazTit, &sazSub, NULL, NULL, NULL, NULL)) {
+          Decl d;
+          memset(&d, 0, sizeof d);
+          snprintf(d.chave, sizeof d.chave, "%s_movie_%s", BC_TMDB_CAT_ADDON, BC_TMDB_SAZONAL_ID);
+          snprintf(d.desativar, sizeof d.desativar, "%s_movie_%s", BC_TMDB_CAT_BASE, BC_TMDB_SAZONAL_ID);
+          snprintf(d.titulo, sizeof d.titulo, "%s • %s", sazTit, sazSub);
+          snprintf(d.tipo, sizeof d.tipo, "movie");
+          snprintf(d.id, sizeof d.id, "%s", BC_TMDB_SAZONAL_ID);
+          snprintf(d.base, sizeof d.base, "%s", BC_TMDB_CAT_BASE);
+          snprintf(d.nomeAddon, sizeof d.nomeAddon, "BestCine Sazonal");
+          d.paginavel = 1;
+          int pos = nDecl > 3 ? 3 : nDecl;
+          if (pos < nDecl) memmove(&decls[pos + 1], &decls[pos], sizeof(Decl) * (size_t)(nDecl - pos));
+          decls[pos] = d;
+          nDecl++;
+        }
+      }
+      if (ajustes_bc_tempo_ativo()) {
+        static const struct { const char *id; const char *tipo; const char *titulo; } TEMPOS[3] = {
+          { BC_TMDB_TEMPO_RAPIDOS_ID, "movie",  "Filmes Rápidos • Até 90 min" },
+          { BC_TMDB_TEMPO_MINI_ID,    "series", "Séries Curtas & Minisséries" },
+          { BC_TMDB_TEMPO_EPICOS_ID,  "movie",  "Épicos & Maratonas • +2h30" },
+        };
+        unsigned tmask = ajustes_bc_tempo_mascara();
+        for (int i = 0; i < 3; i++) {
+          if (!(tmask & (1u << i)) || nDecl >= DECL_MAX) continue;
+          Decl d;
+          memset(&d, 0, sizeof d);
+          snprintf(d.chave, sizeof d.chave, "%s_%s_%s", BC_TMDB_CAT_ADDON, TEMPOS[i].tipo, TEMPOS[i].id);
+          snprintf(d.desativar, sizeof d.desativar, "%s_%s_%s", BC_TMDB_CAT_BASE, TEMPOS[i].tipo, TEMPOS[i].id);
+          snprintf(d.titulo, sizeof d.titulo, "%s", TEMPOS[i].titulo);
+          snprintf(d.tipo, sizeof d.tipo, "%s", TEMPOS[i].tipo);
+          snprintf(d.id, sizeof d.id, "%s", TEMPOS[i].id);
+          snprintf(d.base, sizeof d.base, "%s", BC_TMDB_CAT_BASE);
+          snprintf(d.nomeAddon, sizeof d.nomeAddon, "BestCine Duração");
+          d.paginavel = 1;
+          decls[nDecl++] = d;
+        }
+      }
+      if (ajustes_bc_str_ativo()) {
+        unsigned mask = ajustes_bc_str_mascara();
+        int tipoModo = ajustes_bc_str_tipo();
+        for (int i = 0; i < 8; i++) {
+          if (!(mask & (1u << i))) continue;
+          const BcStrProv *pr = &BC_STR_PROVS[i];
+          if (tipoModo != 2 && nDecl < DECL_MAX) {
+            Decl d;
+            memset(&d, 0, sizeof d);
+            snprintf(d.chave, sizeof d.chave, "%s_movie_%s", BC_TMDB_CAT_ADDON, pr->slug);
+            snprintf(d.desativar, sizeof d.desativar, "%s_movie_%s", BC_TMDB_CAT_BASE, pr->slug);
+            snprintf(d.titulo, sizeof d.titulo, "%s • Filmes", pr->nome);
+            snprintf(d.tipo, sizeof d.tipo, "movie");
+            snprintf(d.id, sizeof d.id, "%s", pr->slug);
+            snprintf(d.base, sizeof d.base, "%s", BC_TMDB_CAT_BASE);
+            snprintf(d.nomeAddon, sizeof d.nomeAddon, "Streaming Brasil");
+            d.paginavel = 1;
+            decls[nDecl++] = d;
+          }
+          if (tipoModo != 1 && nDecl < DECL_MAX) {
+            Decl d;
+            memset(&d, 0, sizeof d);
+            snprintf(d.chave, sizeof d.chave, "%s_series_%s", BC_TMDB_CAT_ADDON, pr->slug);
+            snprintf(d.desativar, sizeof d.desativar, "%s_series_%s", BC_TMDB_CAT_BASE, pr->slug);
+            snprintf(d.titulo, sizeof d.titulo, "%s • Séries", pr->nome);
+            snprintf(d.tipo, sizeof d.tipo, "series");
+            snprintf(d.id, sizeof d.id, "%s", pr->slug);
+            snprintf(d.base, sizeof d.base, "%s", BC_TMDB_CAT_BASE);
+            snprintf(d.nomeAddon, sizeof d.nomeAddon, "Streaming Brasil");
+            d.paginavel = 1;
+            decls[nDecl++] = d;
+          }
+        }
+      }
+    }
     printf("[desc] %d catalogos declarados pelos addons\n", nDecl);
     // FANTASMAS. Addon removido da conta deixava os catalogos dele na lista de
     // fileiras — e na home — ate o proximo login (@rawldon). Aqui TODOS os
@@ -4869,8 +5337,8 @@ static void *montar(void *u) {
     // linhas dele nao valem nada para a home de qualquer jeito.
     // ADDONS_MAX covers all 128 owners; a 16-entry snapshot falsely pruned
     // catalogs belonging to addons beyond the first 16 (B4).
-    { const char *ids[ADDONS_MAX], *bases[ADDONS_MAX];
-      int ativos[ADDONS_MAX], q, semId = 0;
+    { const char *ids[ADDONS_MAX + 1], *bases[ADDONS_MAX + 1];
+      int ativos[ADDONS_MAX + 1], q, semId = 0;
       int perfilLista = addons_perfil_da_lista();
       AddonIdentidade *lista = calloc(ADDONS_MAX, sizeof *lista);
       int na = lista && addons_copiar_identidades
@@ -4881,6 +5349,12 @@ static void *montar(void *u) {
         for (q = 0; q < na; q++) {
           ids[q] = lista[q].id; bases[q] = lista[q].base; ativos[q] = lista[q].ativo;
           if (ativos[q] && !ids[q][0]) semId++;
+        }
+        if (bcQuantosCatalogosAtivos() > 0 && na < ADDONS_MAX + 1) {
+          ids[na] = BC_TMDB_CAT_ADDON;
+          bases[na] = BC_TMDB_CAT_BASE;
+          ativos[na] = 1;
+          na++;
         }
         if (addons_versao() != versaoManifestos || addons_perfil_da_lista() != perfilLista)
           printf("[fileiras] poda adiada: lista ou perfil mudou durante a copia\n");
@@ -9519,6 +9993,40 @@ static void *fioVerTudo(void *u) {
       if(ok){if(semMais||!added||vtN>=colecaoTeto(fonte.catId))vtFim=1;else vtPagina=skip+1;}
       seguir = vtPaginaSoDeVistos(antes, added, paginas);
       if (!seguir) vtFioVivo=0; }
+    pthread_mutex_unlock(&vtTrava);
+    free(lote);
+    if (seguir) continue;
+    return NULL;
+  }
+
+  if (!strcmp(base, BC_TMDB_CAT_BASE)) {
+    int pagTmdb = (skip / 20) + 1;
+    int ok = 0, semMais = 1;
+    CatItem *lote = calloc(BC_TMDB_CACHE_ITENS, sizeof *lote);
+    int nl = lote ? bcLerCatalogoTmdb(type, id, pagTmdb, lote, BC_TMDB_CACHE_ITENS,
+                                      BC_TMDB_CACHE_ITENS, &ok, &semMais) : 0;
+    cap = colecaoTeto(id);
+    pthread_mutex_lock(&vtTrava);
+    if (generation != vtGeracao || !descSessaoAtual()) {
+      pthread_mutex_unlock(&vtTrava);
+      free(lote);
+      continue;
+    }
+    int added = 0;
+    for (int i = 0; i < nl && vtN < cap; i++) {
+      int dup = 0;
+      for (int j = 0; j < vtN; j++)
+        if (lote[i].imdb[0] && !strcmp(vtItens[j].imdb, lote[i].imdb) &&
+            !strcmp(vtItens[j].tipo, lote[i].tipo)) { dup = 1; break; }
+      if (!dup) { vtItens[vtN++] = lote[i]; added++; }
+    }
+    vtErro = !ok;
+    if (ok) {
+      if (semMais || !added || vtN >= cap) vtFim = 1;
+      else vtPagina = pagTmdb * 20;
+    }
+    int seguir = vtPaginaSoDeVistos(antes, added, paginas);
+    if (!seguir) vtFioVivo = 0;
     pthread_mutex_unlock(&vtTrava);
     free(lote);
     if (seguir) continue;

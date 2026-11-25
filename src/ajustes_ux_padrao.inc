@@ -355,3 +355,19 @@
   0, /* folder hero details: On (V_LIGA 0) */
   0, /* BestCine account info/refresh action */
   0, /* BestCine anti-block DNS (DoH): 0 = Cloudflare (1.1.1.1) */
+  0, /* BestCine Sessao do Momento (Dinamico por Horario): Ligado (V_LIGA 0) */
+  1, /* BestCine Catalogos de Streaming (Brasil): Desligado (V_LIGA 1) */
+  0, /* BestCine Streaming tipos: 0 = Filmes e Series */
+  0, /* BestCine Streaming Netflix: Ligado */
+  0, /* BestCine Streaming Prime Video: Ligado */
+  0, /* BestCine Streaming Disney+: Ligado */
+  1, /* BestCine Streaming Max: Desligado */
+  1, /* BestCine Streaming Globoplay: Desligado */
+  1, /* BestCine Streaming Apple TV+: Desligado */
+  1, /* BestCine Streaming Paramount+: Desligado */
+  1, /* BestCine Streaming Crunchyroll: Desligado */
+  0, /* BestCine Catalogo Sazonal Automatico: Ligado (V_LIGA 0) */
+  1, /* BestCine Catalogos por Tempo/Duracao: Desligado (V_LIGA 1) */
+  0, /* BestCine Tempo: Filmes Rapidos (ate 90 min): Ligado */
+  0, /* BestCine Tempo: Series Curtas & Minisseries: Ligado */
+  0, /* BestCine Tempo: Epicos & Maratonas (+2h30): Ligado */

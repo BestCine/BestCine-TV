@@ -865,6 +865,15 @@ void ajustes_provedores_abrir_sessao(void);
 int  ajustes_provedores_arquivo(char *dst, unsigned tam, const char *base);
 void ajustes_perfil_padrao(void);
 
+int ajustes_bc_dns(void);
+int ajustes_bc_momento(void);
+int ajustes_bc_sazonal(void);
+int ajustes_bc_tempo_ativo(void);
+unsigned ajustes_bc_tempo_mascara(void);
+int ajustes_bc_str_ativo(void);
+int ajustes_bc_str_tipo(void);
+unsigned ajustes_bc_str_mascara(void);
+
 #ifdef NV_SHOT_HOOKS
 int ajustes_shot_valor(const char *chave, int v);   // capturas: opcao pela chave
 #endif
