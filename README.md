@@ -75,9 +75,9 @@ Se o seu aparelho usa **Android TV, Google TV ou Fire TV** (exige **Android 7 ou
 
 ### 4️⃣ Quer instalar no WINDOWS, macOS, Linux, Celular Android ou iPhone/iPad?
 > ⚠️ **NÃO use os arquivos desta página no PC ou no Celular!** Baixe a versão de PC e Celular aqui:
-- 💻 **[⬇️ BAIXAR PARA WINDOWS PC (.msi)](https://github.com/BestCine/BestCine/releases/download/v1.1.12/BestCine-Windows-x64-1.1.12.msi)**
-- 📱 **[⬇️ BAIXAR PARA CELULAR / TABLET ANDROID — APK único universal (.apk)](https://github.com/BestCine/BestCine/releases/download/v1.1.12/BestCine-Android-universal-1.1.12.apk)**
-- 🍏 **[⬇️ BAIXAR PARA iPHONE / iPAD (.ipa)](https://github.com/BestCine/BestCine/releases/download/v1.1.12/BestCine-iOS-1.1.12.ipa)** *(Fonte SideStore / AltStore: **[altstore.json](https://bestcine.github.io/altstore.json)**)*
+- 💻 **[⬇️ BAIXAR PARA WINDOWS PC (.msi)](https://github.com/BestCine/BestCine/releases/download/v1.1.13/BestCine-Windows-x64-1.1.13.msi)**
+- 📱 **[⬇️ BAIXAR PARA CELULAR / TABLET ANDROID — APK único universal (.apk)](https://github.com/BestCine/BestCine/releases/download/v1.1.13/BestCine-Android-universal-1.1.13.apk)**
+- 🍏 **[⬇️ BAIXAR PARA iPHONE / iPAD (.ipa)](https://github.com/BestCine/BestCine/releases/download/v1.1.13/BestCine-iOS-1.1.13.ipa)** *(Fonte SideStore / AltStore: **[altstore.json](https://bestcine.github.io/altstore.json)**)*
 - Página completa do app de PC &amp; Celular: **[BestCine/BestCine](https://github.com/BestCine/BestCine)** · Central oficial: **[bestcine.github.io](https://bestcine.github.io)**
 
 ---
