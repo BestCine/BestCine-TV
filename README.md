@@ -2,7 +2,7 @@
   <img src="deploy/app/icon-large.png" alt="BestCine TV" width="120">
 </p>
 
-<h1 align="center">📺 BestCine TV (v1.1.11) — Smart TVs, TV Box, Mi Box &amp; Fire TV</h1>
+<h1 align="center">📺 BestCine TV (v1.1.12) — Smart TVs, TV Box, Mi Box &amp; Fire TV</h1>
 
 <p align="center">
   <strong>Versão feita especialmente para CONTROLE REMOTO (60 FPS nativo)</strong><br>
@@ -14,7 +14,7 @@
     <img src="https://img.shields.io/badge/⬇️_CENTRAL_OFICIAL_DE_DOWNLOADS-bestcine.github.io-2563EB?style=for-the-badge" alt="Baixar BestCine" />
   </a>
   <a href="https://github.com/BestCine/BestCine-TV/releases/latest">
-    <img src="https://img.shields.io/badge/Vers%C3%A3o_Atual-v1.1.11-1E6BFF?style=for-the-badge" alt="Versão Atual" />
+    <img src="https://img.shields.io/badge/Vers%C3%A3o_Atual-v1.1.12-1E6BFF?style=for-the-badge" alt="Versão Atual" />
   </a>
   <a href="https://github.com/BestCine/BestCine">
     <img src="https://img.shields.io/badge/Windows_PC_%26_Celular-BestCine-0078D6?style=for-the-badge" alt="App PC e Celular" />
@@ -48,11 +48,11 @@ Se o seu aparelho usa **Android TV, Google TV ou Fire TV** (exige **Android 7 ou
 
 | Letras do modelo da sua Samsung | Versão do Tizen | Clique para baixar |
 |---|---|---|
-| **`NU` / `RU` / `TU`** *(ex.: NU7100, RU7100, TU7000, TU8000)* | Tizen 4.0 – 5.5 | 👉 **[⬇️ Baixar para NU / RU / TU (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.11/BestCineTV-1.1.11-NuvioTpk40.tpk)** |
-| **`AU` / `Q60A` / `Q70A` / `Q80A`** *(ex.: AU7700, AU8000)* | Tizen 6.0 | 👉 **[⬇️ Baixar para AU / linha A (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.11/BestCineTV-1.1.11-NuvioTpk60.tpk)** |
-| **`BU` / `CU` / `Q60B` / `Q60C`** *(ex.: BU8000, CU7700, CU8000)* | Tizen 6.5 – 7.0 *(fábrica)* | 👉 **[⬇️ Baixar para BU / CU (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.11/BestCineTV-1.1.11-NuvioTpk65.tpk)** |
-| **`DU` / `U` / `Q60D` / `S90D+` ou `CU` atualizada** *(ex.: DU7700, DU8000, U8500F, 2024+ e `CU` com One UI / Tizen 8–9)* | Tizen 8.0 – 9.0 | 👉 **[⬇️ Baixar para Tizen 8–9 / DU / U / CU atualizada (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.11/BestCineTV-1.1.11-NuvioTpk.tpk)** |
-| *Alternativa WebAssembly (se o `.tpk` acima der erro)* | Tizen 5.5+ | 👉 **[⬇️ Baixar versão .wgt](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.11/BestCineTV-1.1.11-tizen.wgt)** |
+| **`NU` / `RU` / `TU`** *(ex.: NU7100, RU7100, TU7000, TU8000)* | Tizen 4.0 – 5.5 | 👉 **[⬇️ Baixar para NU / RU / TU (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.12/BestCineTV-1.1.12-NuvioTpk40.tpk)** |
+| **`AU` / `Q60A` / `Q70A` / `Q80A`** *(ex.: AU7700, AU8000)* | Tizen 6.0 | 👉 **[⬇️ Baixar para AU / linha A (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.12/BestCineTV-1.1.12-NuvioTpk60.tpk)** |
+| **`BU` / `CU` / `Q60B` / `Q60C`** *(ex.: BU8000, CU7700, CU8000)* | Tizen 6.5 – 7.0 *(fábrica)* | 👉 **[⬇️ Baixar para BU / CU (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.12/BestCineTV-1.1.12-NuvioTpk65.tpk)** |
+| **`DU` / `U` / `Q60D` / `S90D+` ou `CU` atualizada** *(ex.: DU7700, DU8000, U8500F, 2024+ e `CU` com One UI / Tizen 8–9)* | Tizen 8.0 – 9.0 | 👉 **[⬇️ Baixar para Tizen 8–9 / DU / U / CU atualizada (.tpk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.12/BestCineTV-1.1.12-NuvioTpk.tpk)** |
+| *Alternativa WebAssembly (se o `.tpk` acima der erro)* | Tizen 5.5+ | 👉 **[⬇️ Baixar versão .wgt](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.12/BestCineTV-1.1.12-tizen.wgt)** |
 
 - **Como instalar:** envie o arquivo `.tpk` escolhido para a TV usando o **[Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung)** (ele assina automaticamente para a sua TV).
 - **TVs `CU` (2023) atualizadas pela Samsung:** se a sua TV `CU` recebeu atualização automática para **One UI / Tizen 8.0 ou 9.0**, use o **`NuvioTpk.tpk`** (sem `65`).
@@ -69,7 +69,7 @@ Se o seu aparelho usa **Android TV, Google TV ou Fire TV** (exige **Android 7 ou
      ```
   3. Procure por **BestCine TV** e clique em **Install**.
 - **Ou baixe o arquivo `.ipk` direto:**
-  👉 **[⬇️ BAIXAR BESTCINE TV PARA LG webOS (.ipk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.11/com.bestcine.tv_1.1.11_arm.ipk)** *(ou [versão High-Cache para TVs com 2 GB+ RAM](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.11/com.bestcine.tv_1.1.11_arm-highcache.ipk))*.
+  👉 **[⬇️ BAIXAR BESTCINE TV PARA LG webOS (.ipk)](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.12/com.bestcine.tv_1.1.12_arm.ipk)** *(ou [versão High-Cache para TVs com 2 GB+ RAM](https://github.com/BestCine/BestCine-TV/releases/download/v1.1.12/com.bestcine.tv_1.1.12_arm-highcache.ipk))*.
 
 ---
 
