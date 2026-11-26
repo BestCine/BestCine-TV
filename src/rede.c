@@ -1,4 +1,5 @@
 #include "rede.h"
+#include "admin.h"
 #ifdef NV_ANDROID
 #include "android.h"
 #endif
@@ -110,6 +111,56 @@ int rede_dns_modo(void) {
 void rede_definir_dns(int modo) {
   if (modo < REDE_DNS_CLOUDFLARE || modo > REDE_DNS_SISTEMA) modo = REDE_DNS_CLOUDFLARE;
   __atomic_store_n(&bcDnsModo, modo, __ATOMIC_RELEASE);
+}
+
+#ifndef NV_BESTCINE_CLIENT_SECRET
+#define NV_BESTCINE_CLIENT_SECRET ""
+#endif
+#ifndef NV_VERSAO
+#define NV_VERSAO "1.1.12"
+#endif
+
+// Assina automaticamente requisicoes para rotas dedicadas (/bestcine-tv/ e /bestcine-vod/)
+// com HMAC-SHA256 + timestamp usando NV_BESTCINE_CLIENT_SECRET (injetado via GitHub Secrets).
+static const char *const *bcAssinarCabecalhos(const char *url, const char *const *orig,
+                                              const char *out[32],
+                                              char hClient[80], char hTs[48], char hSig[96]) {
+  const char *bcPos, *tokEnd, *pathEnd, *q;
+  char tok[160], pathOnly[512], msg[768], sigHex[65];
+  size_t tokLen, pathLen;
+  int n = 0;
+  long long ts;
+  if (!url || (!strstr(url, "/bestcine-tv/") && !strstr(url, "/bestcine-vod/"))) return orig;
+  bcPos = strstr(url, "/bc_");
+  if (!bcPos) return orig;
+  tokEnd = strchr(bcPos + 1, '/');
+  if (!tokEnd) return orig;
+  tokLen = (size_t)(tokEnd - (bcPos + 1));
+  if (tokLen == 0 || tokLen >= sizeof tok) return orig;
+  memcpy(tok, bcPos + 1, tokLen);
+  tok[tokLen] = 0;
+  q = strchr(bcPos, '?');
+  pathEnd = q ? q : (bcPos + strlen(bcPos));
+  pathLen = (size_t)(pathEnd - bcPos);
+  if (pathLen == 0 || pathLen >= sizeof pathOnly) return orig;
+  memcpy(pathOnly, bcPos, pathLen);
+  pathOnly[pathLen] = 0;
+  if (orig) {
+    while (orig[n] && n < 27) { out[n] = orig[n]; n++; }
+  }
+  snprintf(hClient, 80, "X-BestCine-Client: BestCine-TV/%s", NV_VERSAO);
+  out[n++] = hClient;
+  if (sizeof(NV_BESTCINE_CLIENT_SECRET) > 1 && NV_BESTCINE_CLIENT_SECRET[0]) {
+    ts = (long long)time(NULL);
+    snprintf(msg, sizeof msg, "%s|%s|%lld", tok, pathOnly, ts);
+    admin_hmac_sha256_hex(NV_BESTCINE_CLIENT_SECRET, (const unsigned char *)msg, (unsigned long)strlen(msg), sigHex);
+    snprintf(hTs, 48, "X-BestCine-Ts: %lld", ts);
+    snprintf(hSig, 96, "X-BestCine-Sig: %s", sigHex);
+    out[n++] = hTs;
+    out[n++] = hSig;
+  }
+  out[n] = NULL;
+  return out;
 }
 
 #if defined(NV_TPK40) && defined(__EMSCRIPTEN__)
@@ -813,7 +864,9 @@ char *rede_baixar_etag(const char *url, int segundos, const char *const *cab,
 }
 
 char *rede_baixar(const char *url, int segundos) {
-  return pedir("GET", url, segundos, NULL, NULL, NULL, NULL, NULL);
+  const char *bcOut[32]; char hC[80], hT[48], hS[96];
+  const char *const *c = bcAssinarCabecalhos(url, NULL, bcOut, hC, hT, hS);
+  return pedir("GET", url, segundos, c, NULL, NULL, NULL, NULL);
 }
 
 char *rede_baixar_bin(const char *url, int segundos, long *tam) {
@@ -821,7 +874,9 @@ char *rede_baixar_bin(const char *url, int segundos, long *tam) {
 }
 
 char *rede_baixar_com(const char *url, int segundos, const char *const *cab) {
-  return pedir("GET", url, segundos, cab, NULL, NULL, NULL, NULL);
+  const char *bcOut[32]; char hC[80], hT[48], hS[96];
+  const char *const *c = bcAssinarCabecalhos(url, cab, bcOut, hC, hT, hS);
+  return pedir("GET", url, segundos, c, NULL, NULL, NULL, NULL);
 }
 
 // GET em fluxo no .wgt: o XHR sincrono so entrega o corpo inteiro, entao o
@@ -854,7 +909,9 @@ char *rede_postar_bin(const char *url, int segundos, const char *corpo, long *ta
 
 char *rede_baixar_st(const char *url, int segundos, const char *const *cab,
                      int *status) {
-  return pedir("GET", url, segundos, cab, NULL, NULL, NULL, status);
+  const char *bcOut[32]; char hC[80], hT[48], hS[96];
+  const char *const *c = bcAssinarCabecalhos(url, cab, bcOut, hC, hT, hS);
+  return pedir("GET", url, segundos, c, NULL, NULL, NULL, status);
 }
 char *rede_baixar_st_retry(const char *url, int segundos, const char *const *cab,
                            int *status, int *retryAfter) {
@@ -2508,25 +2565,27 @@ char *rede_baixar_com(const char *url, int segundos, const char *const *cab) {
 
 char *rede_baixar_st(const char *url, int segundos, const char *const *cab,
                      int *status) {
+  const char *bcOut[32]; char hC[80], hT[48], hS[96];
+  const char *const *c = bcAssinarCabecalhos(url, cab, bcOut, hC, hT, hS);
 #ifdef NV_ANDROID
   char *r;
   int st = 0;
   if (!url || !*url) { if (status) *status = 0; return NULL; }
   if (androidPrimeiro()) {   // st local: com status NULL o 4xx tambem volta com corpo, como no curl
-    r = viaAndroid("GET", url, segundos, cab, NULL, &st, NULL, NULL, "libcurl fora");
+    r = viaAndroid("GET", url, segundos, c, NULL, &st, NULL, NULL, "libcurl fora");
     if (status) *status = st;
     return r;
   }
   redeCurlLocal = 0;
-  r = rede_baixar_interno2(url, segundos, NULL, cab, &st, NULL, 0);
+  r = rede_baixar_interno2(url, segundos, NULL, c, &st, NULL, 0);
   if (status) *status = st;
   if (!r && st == 0) {
-    r = androidDepois("GET", url, segundos, cab, NULL, &st, NULL);
+    r = androidDepois("GET", url, segundos, c, NULL, &st, NULL);
     if (status) *status = st;
   }
   return r;
 #else
-  return rede_baixar_interno2(url, segundos, NULL, cab, status, NULL, 0);
+  return rede_baixar_interno2(url, segundos, NULL, c, status, NULL, 0);
 #endif
 }
 char *rede_baixar_st_retry(const char *url, int segundos, const char *const *cab,
@@ -2541,7 +2600,9 @@ char *rede_baixar_etag(const char *url, int segundos, const char *const *cab,
 
 static char *rede_baixar_interno(const char *url, int segundos, long *tam,
                                  const char *const *cab) {
-  return rede_baixar_interno2(url, segundos, tam, cab, NULL, NULL, 0);
+  const char *bcOut[32]; char hC[80], hT[48], hS[96];
+  const char *const *c = bcAssinarCabecalhos(url, cab, bcOut, hC, hT, hS);
+  return rede_baixar_interno2(url, segundos, tam, c, NULL, NULL, 0);
 }
 
 // SEGUNDA TENTATIVA EM CONEXAO NOVA (24/09/2026), so para falha de TRANSPORTE

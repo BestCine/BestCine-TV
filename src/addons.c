@@ -2860,11 +2860,18 @@ static void *fioFontes(void *u) {
       exVivo = pthread_create(&exFio, NULL, fioIdsExtras, &ex) == 0;
     }
     int semRecurso = -1, semRecursoAlt = -1;
-    int bcTvExclusivo = !strncmp(primario, "bestcine_tv_", 12) && strstr(origem->base, "/bc_") != NULL;
+    int bcBase = strstr(origem->base, "/bc_") != NULL;
+    int bcTvExclusivo = bcBase && !strncmp(primario, "bestcine_tv_", 12);
+    int bcVodExclusivo = bcBase && vod;
     if (bcTvExclusivo) {
       nTipos = 1;
       corpo = nv_addon_pedido_coube(origem->nome, nv_addon_url(url, sizeof url, origem->base, "/bestcine-tv/stream/%s.json",
                                     idUrl), sizeof url) && idUrl[0]
+              ? baixarStream(origem->nome, url, prazoS, &semRecurso) : NULL;
+    } else if (bcVodExclusivo) {
+      nTipos = 1;
+      corpo = nv_addon_pedido_coube(origem->nome, nv_addon_url(url, sizeof url, origem->base, "/bestcine-vod/stream/%s/%s.json",
+                                    t1, idUrl), sizeof url) && idUrl[0]
               ? baixarStream(origem->nome, url, prazoS, &semRecurso) : NULL;
     } else {
       corpo = nv_addon_pedido_coube(origem->nome, nv_addon_url(url, sizeof url, origem->base, "/stream/%s/%s.json",

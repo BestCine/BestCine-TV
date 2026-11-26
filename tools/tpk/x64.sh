@@ -45,7 +45,7 @@ ctr_run --rm --platform linux/amd64 --env-file "$ENVF" \
   ASS_CFLAGS="-DNV_ASS_LIBASS"; ASS_LIBS="-lass -lharfbuzz -lfribidi -lfreetype"
   if [ "${NV_TPK_SEM_ASS:-}" = 1 ]; then ASS_CFLAGS=""; ASS_LIBS="-lfreetype"; fi
   for k in NV_SUPABASE_URL NV_SUPABASE_ANON_KEY NV_TV_LOGIN_BASE NV_TRAKT_CLIENT_ID \
-           NV_TRAKT_CLIENT_SECRET NV_SIMKL_CLIENT_ID NV_SIMKL_APP NV_TMDB_API_KEY NV_SEEKR_API_KEY \
+           NV_TRAKT_CLIENT_SECRET NV_SIMKL_CLIENT_ID NV_SIMKL_APP NV_TMDB_API_KEY NV_BESTCINE_CLIENT_SECRET NV_SEEKR_API_KEY \
            NV_REC_URL NV_DISCORD_CLIENT_ID NV_VERSAO; do
     eval "v=\${$k:-}"
     v=$(printf "%s" "$v" | sed "s/[\\\\\"]/\\\\&/g")

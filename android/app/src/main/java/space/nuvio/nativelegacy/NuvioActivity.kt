@@ -2,11 +2,13 @@ package space.nuvio.nativelegacy
 
 import android.Manifest
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.PendingIntent
 import android.app.UiModeManager
 import android.content.Context
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
@@ -409,8 +411,38 @@ class NuvioActivity : SDLActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (tratarRetornoInstalacaoApk(intent)) return
         setIntent(intent)
         entregarDeepLink(intent)
+    }
+
+    private fun tratarRetornoInstalacaoApk(intent: Intent?): Boolean {
+        if (intent?.action != ACTION_BC_INSTALL_RESULT) return false
+        val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
+        when (status) {
+            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                @Suppress("DEPRECATION")
+                val confirmIntent = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+                if (confirmIntent != null) {
+                    try {
+                        startActivity(confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } catch (e: Exception) {
+                        Log.w("nuvio", "[atualizacao] falha ao abrir confirmacao PackageInstaller: ${e.message}")
+                        instalando = false
+                    }
+                }
+            }
+            PackageInstaller.STATUS_SUCCESS -> {
+                Log.i("nuvio", "[atualizacao] APK instalado com sucesso via PackageInstaller")
+                instalando = false
+            }
+            else -> {
+                val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: ""
+                Log.w("nuvio", "[atualizacao] PackageInstaller status=$status msg=$msg")
+                instalando = false
+            }
+        }
+        return true
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -618,6 +650,8 @@ class NuvioActivity : SDLActivity() {
     private fun despedida() = File(filesDir, "dados/despedida.txt")
 
     @Volatile private var instalando = false
+    @Volatile private var apkPendenteCaminho: String? = null
+    private val ACTION_BC_INSTALL_RESULT = "space.nuvio.nativelegacy.BC_INSTALL_RESULT"
 
     @Suppress("DEPRECATION")
     private fun apkVersion(file: File): Long? = try {
@@ -643,20 +677,25 @@ class NuvioActivity : SDLActivity() {
 
     // Chamado pelo C (android_instalar_apk, atualizacao.c), do fio do SDL.
     // 1 = instalador aberto, 2 = falta a permissao "instalar apps desta fonte"
-    // (abre a tela dela), 0 = falhou. Nao bloqueia: o resultado e do sistema.
+    // (abre a tela dela e retoma no onResume), 0 = falhou.
     fun instalarApk(caminho: String): Int {
         return try {
             val arq = File(caminho)
             if (!arq.isFile) return 0
             if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+                apkPendenteCaminho = caminho
                 startActivity(
                     Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 )
                 return 2
             }
-            val uri = FileProvider.getUriForFile(this, "$packageName.atualizacao", arq)
+            apkPendenteCaminho = null
             instalando = true
+            if (instalarViaPackageInstaller(arq)) {
+                return 1
+            }
+            val uri = FileProvider.getUriForFile(this, "$packageName.atualizacao", arq)
             startActivity(
                 Intent(Intent.ACTION_VIEW)
                     .setDataAndType(uri, "application/vnd.android.package-archive")
@@ -666,6 +705,38 @@ class NuvioActivity : SDLActivity() {
         } catch (e: Exception) {
             instalando = false
             0
+        }
+    }
+
+    private fun instalarViaPackageInstaller(arq: File): Boolean {
+        return try {
+            val pi = packageManager.packageInstaller
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            if (Build.VERSION.SDK_INT >= 31) {
+                params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+            }
+            val sessionId = pi.createSession(params)
+            val session = pi.openSession(sessionId)
+            session.use { s ->
+                arq.inputStream().use { input ->
+                    s.openWrite("bestcine_update.apk", 0, arq.length()).use { output ->
+                        input.copyTo(output)
+                        s.fsync(output)
+                    }
+                }
+                val callbackIntent = Intent(this, NuvioActivity::class.java).apply {
+                    action = ACTION_BC_INSTALL_RESULT
+                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                val flags = PendingIntent.FLAG_UPDATE_CURRENT or
+                    if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
+                val sender = PendingIntent.getActivity(this, sessionId, callbackIntent, flags).intentSender
+                s.commit(sender)
+            }
+            true
+        } catch (e: Exception) {
+            Log.w("nuvio", "[atualizacao] PackageInstaller falhou, tentando fallback ACTION_VIEW: ${e.message}")
+            false
         }
     }
 
@@ -839,6 +910,11 @@ class NuvioActivity : SDLActivity() {
         telaCheiaTouch()
         atualizarAcessibilidade()
         vigia?.frente(true)
+        val pendente = apkPendenteCaminho
+        if (pendente != null && (Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls())) {
+            apkPendenteCaminho = null
+            Thread { instalarApk(pendente) }.start()
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

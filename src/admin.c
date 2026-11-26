@@ -67,6 +67,25 @@ void admin_sha256_hex(const unsigned char *buf, unsigned long n, char *hex65) {
   sha_ini(&s); sha_add(&s, buf, n); sha_fim(&s, d); hex(d, 32, hex65);
 }
 
+void admin_hmac_sha256_hex(const char *chave, const unsigned char *msg, unsigned long n, char *hex65) {
+  unsigned char kpad[64], ipad[64], opad[64], inner[32], outer[32];
+  size_t klen = chave ? strlen(chave) : 0, i;
+  Sha s;
+  memset(kpad, 0, sizeof kpad);
+  if (klen > 64) {
+    sha_ini(&s); sha_add(&s, (const unsigned char *)chave, (unsigned long)klen); sha_fim(&s, kpad);
+  } else if (klen > 0) {
+    memcpy(kpad, chave, klen);
+  }
+  for (i = 0; i < 64; i++) {
+    ipad[i] = kpad[i] ^ 0x36;
+    opad[i] = kpad[i] ^ 0x5c;
+  }
+  sha_ini(&s); sha_add(&s, ipad, 64); if (msg && n > 0) sha_add(&s, msg, n); sha_fim(&s, inner);
+  sha_ini(&s); sha_add(&s, opad, 64); sha_add(&s, inner, 32); sha_fim(&s, outer);
+  hex(outer, 32, hex65);
+}
+
 // hash = SHA-256 iterado VOLTAS vezes sobre (sal || pin).
 static void derivar(const unsigned char sal[16], const char *pin, unsigned char out[32]) {
   Sha s; int i;

@@ -1715,7 +1715,7 @@ void atualizacao_desenhar(Uint32 agora) {
       yc = y + 30.0f + 22.0f + 36.0f;
       gfx_cor((GfxRect){ x, yc - 26.0f, 52.0f, 52.0f }, 0.5f, 0.298f, 0.765f, 0.541f, 0.18f * ca);
       gfx_icone((GfxRect){ x + 12.0f, yc - 14.0f, 28.0f, 28.0f }, "aj_check", 0.298f, 0.765f, 0.541f, ca);
-      { TxtLinha l = txt_linha(TXT_G30B, soEncenada ? i18n("Pronto. Reinicie o Nuvio para usar a versão nova.")
+      { TxtLinha l = txt_linha(TXT_G30B, soEncenada ? i18n("Pronto. Reinicie o BestCine TV para usar a versão nova.")
                                                      : i18n("Atualizado. Feche e abra o app para usar."), AT_TX, 255);
         txt_desenhar_alpha(l, x + 52.0f + 22.0f, yc - (float)l.h * 0.5f, ca); }
       if (soEncenada) {
@@ -1771,7 +1771,7 @@ void atualizacao_desenhar(Uint32 agora) {
       float yc = y + 36.0f, bx = x;
 #ifdef NV_ANDROID
       if (apkPerm) {
-        TxtLinha l = txt_linha(TXT_DET_SIN, i18n("Permita instalar apps do Nuvio e tente de novo"), AT_TX, 255);
+        TxtLinha l = txt_linha(TXT_DET_SIN, i18n("Permita instalar apps do BestCine TV e tente de novo"), AT_TX, 255);
         txt_desenhar_alpha(l, x, rodY - 12.0f - (float)l.h, ca * 0.80f);
       }
 #endif

@@ -25,5 +25,6 @@ void admin_pin_esquecer(void);
 
 // SHA-256 hex (64 chars + NUL) de um buffer; exposto para o teste.
 void admin_sha256_hex(const unsigned char *buf, unsigned long n, char *hex65);
+void admin_hmac_sha256_hex(const char *chave, const unsigned char *msg, unsigned long n, char *hex65);
 
 #endif

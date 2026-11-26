@@ -43,6 +43,7 @@ TRS=$(valor TRAKT_CLIENT_SECRET)
 SMK=$(valor SIMKL_CLIENT_ID)
 SMA=$(valor SIMKL_APP_NAME)
 TMD=$(valor TMDB_API_KEY)
+BCS=$(valor BESTCINE_CLIENT_SECRET)
 # Seekr exige a chave de cada pessoa nos Ajustes; nunca embutir a do pacote.
 SKR=""
 # Servico de recomendacoes entre amigos (servidor/recomendacoes). VAZIO E UM
@@ -95,6 +96,7 @@ if [ "$1" = "--env-file" ]; then
     printf 'NV_SIMKL_CLIENT_ID=%s\n' "$SMK"
     printf 'NV_SIMKL_APP=%s\n' "$SMA"
     printf 'NV_TMDB_API_KEY=%s\n' "$TMD"
+    printf 'NV_BESTCINE_CLIENT_SECRET=%s\n' "$BCS"
     printf 'NV_SEEKR_API_KEY=%s\n' "$SKR"
     printf 'NV_REC_URL=%s\n' "$REC"
     printf 'NV_DISCORD_CLIENT_ID=%s\n' "$DSC"
@@ -104,5 +106,5 @@ if [ "$1" = "--env-file" ]; then
   exit 0
 fi
 
-printf -- '-DNV_SUPABASE_URL=\\"%s\\" -DNV_SUPABASE_ANON_KEY=\\"%s\\" -DNV_TV_LOGIN_BASE=\\"%s\\" -DNV_TRAKT_CLIENT_ID=\\"%s\\" -DNV_TRAKT_CLIENT_SECRET=\\"%s\\" -DNV_SIMKL_CLIENT_ID=\\"%s\\" -DNV_SIMKL_APP=\\"%s\\" -DNV_TMDB_API_KEY=\\"%s\\" -DNV_SEEKR_API_KEY=\\"%s\\" -DNV_REC_URL=\\"%s\\" -DNV_DISCORD_CLIENT_ID=\\"%s\\" -DNV_VERSAO=\\"%s\\"' \
-  "$URL" "$KEY" "$TVB" "$TRK" "$TRS" "$SMK" "$SMA" "$TMD" "$SKR" "$REC" "$DSC" "$VER"
+printf -- '-DNV_SUPABASE_URL=\\"%s\\" -DNV_SUPABASE_ANON_KEY=\\"%s\\" -DNV_TV_LOGIN_BASE=\\"%s\\" -DNV_TRAKT_CLIENT_ID=\\"%s\\" -DNV_TRAKT_CLIENT_SECRET=\\"%s\\" -DNV_SIMKL_CLIENT_ID=\\"%s\\" -DNV_SIMKL_APP=\\"%s\\" -DNV_TMDB_API_KEY=\\"%s\\" -DNV_BESTCINE_CLIENT_SECRET=\\"%s\\" -DNV_SEEKR_API_KEY=\\"%s\\" -DNV_REC_URL=\\"%s\\" -DNV_DISCORD_CLIENT_ID=\\"%s\\" -DNV_VERSAO=\\"%s\\"' \
+  "$URL" "$KEY" "$TVB" "$TRK" "$TRS" "$SMK" "$SMA" "$TMD" "$BCS" "$SKR" "$REC" "$DSC" "$VER"
