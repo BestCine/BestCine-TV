@@ -3104,13 +3104,12 @@ static void vigiarAberturaManual(void) {
     if (!player_fonte_falhou()) player_erro_fonte();   // the cause comes from the player error
     return;
   }
-  if (!fontevolta_abertura_vencida(&g, FONTE_MANUAL_PRAZO_MS) &&
-      !(desde > FONTE_MANUAL_PRAZO_MS && !g.pronto)) return;
-  printf("[fonte] escolha manual nao abriu em %u ms: erro de fonte\n", (unsigned)desde);
-  fflush(stdout);
-  fonteManualDesde = 0;
-  marcarFonteMorta(stream_atual());
-  player_erro_fonte_motivo(i18n("A fonte não respondeu a tempo."), NULL);
+  // Removido o timeout artificial de 25 s para escolha manual de fonte:
+  // fontes lentas podem levar mais tempo para bufferizar sem falhar de fato.
+  // Erros reais do player continuam tratados acima por `g.falhou`.
+  if (g.pronto) {
+    fonteManualDesde = 0;
+  }
 }
 // PRAZO DE ABERTURA (#202, inicio.h): 15 s sem nenhum sinal de vida, 30 s com
 // dado chegando — e o curto so quando a proxima candidata nao e pior que esta

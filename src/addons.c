@@ -2613,6 +2613,9 @@ static int semSegunda(const AddonPedido *a) {
 }
 static int aceitaStream(const AddonPedido *p, const char *tipo, const char *id) {
   if (!p->ativo || !p->fonte) return 0;
+  // Canais ao vivo exclusivos BestCine (/bestcine-tv/stream/:id.json)
+  if (id && !strncmp(id, "bestcine_tv_", 12) && strstr(p->base, "/bc_") != NULL)
+    return 1;
   // Capacidades so PRESUMIDAS: a consulta continua otimista, EXCETO quando o
   // manifesto declara positivamente so conteudo ao vivo (soVivo) — o
   // FrostView TV, um addon de canais, respondia 200 sem o recurso e virava
@@ -2857,9 +2860,17 @@ static void *fioFontes(void *u) {
       exVivo = pthread_create(&exFio, NULL, fioIdsExtras, &ex) == 0;
     }
     int semRecurso = -1, semRecursoAlt = -1;
-    corpo = nv_addon_pedido_coube(origem->nome, nv_addon_url(url, sizeof url, origem->base, "/stream/%s/%s.json",
+    int bcTvExclusivo = !strncmp(primario, "bestcine_tv_", 12) && strstr(origem->base, "/bc_") != NULL;
+    if (bcTvExclusivo) {
+      nTipos = 1;
+      corpo = nv_addon_pedido_coube(origem->nome, nv_addon_url(url, sizeof url, origem->base, "/bestcine-tv/stream/%s.json",
+                                    idUrl), sizeof url) && idUrl[0]
+              ? baixarStream(origem->nome, url, prazoS, &semRecurso) : NULL;
+    } else {
+      corpo = nv_addon_pedido_coube(origem->nome, nv_addon_url(url, sizeof url, origem->base, "/stream/%s/%s.json",
                                     t1, idUrl), sizeof url) && idUrl[0]
-            ? baixarStream(origem->nome, url, prazoS, &semRecurso) : NULL;
+              ? baixarStream(origem->nome, url, prazoS, &semRecurso) : NULL;
+    }
     if (consultaCancelada(c)) {
       if (exVivo) pthread_join(exFio, NULL);
       if (exUsar) free(ex.l);

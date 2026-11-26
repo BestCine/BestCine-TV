@@ -1322,6 +1322,10 @@ static int xtAviso(char *sub, size_t tam);
 // Ver a definicao, junto do EPG por canal (#158).
 static void epgPaisesEscolher(void);
 
+static int ehBaseBestCine(const char *base) {
+  return base && strstr(base, "/bc_") != NULL;
+}
+
 static void sondaManifestos(void) {
   int a;
   sNSabe = 0;
@@ -1336,6 +1340,21 @@ static void sondaManifestos(void) {
     base = ad->base;
     if (!base || !base[0]) continue;
     if (sb) { snprintf(sb->base, sizeof sb->base, "%s", base); sb->canal = -1; sNSabe++; }
+    // Canais de TV exclusivos BestCine: rota dedicada /bestcine-tv/catalog.json
+    // (nao depende mais de bestcine_tv_catalog no /manifest.json publico).
+    if (ehBaseBestCine(base)) {
+      if (sb) sb->canal = 1;
+      if (!ativo) continue;
+      int ja = fonteJa(base, "bestcine_tv_catalog");
+      if (ja < 0 && sNFontes < G_MAX_FONTE) {
+        ja = sNFontes++;
+        snprintf(sFontes[ja].base, sizeof sFontes[ja].base, "%s", base);
+        snprintf(sFontes[ja].tipo, sizeof sFontes[ja].tipo, "tv");
+        snprintf(sFontes[ja].id,   sizeof sFontes[ja].id,   "bestcine_tv_catalog");
+        snprintf(sFontes[ja].nome, sizeof sFontes[ja].nome, "BestCine TV");
+      }
+      continue;
+    }
     // O MANIFESTO JA FOI LIDO PELA DESCOBERTA, no arranque e em paralelo: o
     // que ele declara de canal esta em addons.c. Reler aqui era um GET por
     // addon, em serie, com 15 s de prazo cada — a maior parte da espera para o
@@ -1432,7 +1451,10 @@ static int lerPagina(const GFonte *f, int fl, int skip, int *novos) {
   char *corpo;
   const char *p, *sel[256];
   int n = 0, w, nsel = sGruposEscolhidos(fl, sel, 256);
-  if (skip > 0)
+  if (ehBaseBestCine(f->base) && !strcmp(f->id, "bestcine_tv_catalog")) {
+    if (skip > 0) return 0;
+    w = nv_addon_url(url, sizeof url, f->base, "/bestcine-tv/catalog.json");
+  } else if (skip > 0)
     w = nv_addon_url(url, sizeof url, f->base, "/catalog/%s/%s/skip=%d.json",
                      f->tipo, f->id, skip);
   else

@@ -4829,6 +4829,11 @@ void player_atualizar(float dt, Uint32 agora) {
 #endif
     }
     tocando = video_tocando();
+    // Blindagem: se o video comecou a reproduzir de verdade, limpa qualquer card
+    // residual de erro de fonte para nunca ficar travado sobre o filme.
+    if (erroFonte && video_pronto() && video_pos() > 0.25) {
+      player_limpar_erro_fonte();
+    }
     if (tocando && retomadaAplicada && medirAbertura && !tocouMedido && !ehCanal()) {
       tocouMedido = 1;
       printf("[player] tocando em %u ms desde a abertura (retomada %d%%)\n",

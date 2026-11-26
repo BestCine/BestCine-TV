@@ -5255,6 +5255,7 @@ static void *montar(void *u) {
           nDecl++;
         }
       }
+      int bcOptPos = nDecl > 4 ? 4 : nDecl;
       if (ajustes_bc_tempo_ativo()) {
         static const struct { const char *id; const char *tipo; const char *titulo; } TEMPOS[3] = {
           { BC_TMDB_TEMPO_RAPIDOS_ID, "movie",  "Filmes Rápidos • Até 90 min" },
@@ -5274,7 +5275,11 @@ static void *montar(void *u) {
           snprintf(d.base, sizeof d.base, "%s", BC_TMDB_CAT_BASE);
           snprintf(d.nomeAddon, sizeof d.nomeAddon, "BestCine Duração");
           d.paginavel = 1;
-          decls[nDecl++] = d;
+          int pos = bcOptPos <= nDecl ? bcOptPos : nDecl;
+          if (pos < nDecl) memmove(&decls[pos + 1], &decls[pos], sizeof(Decl) * (size_t)(nDecl - pos));
+          decls[pos] = d;
+          nDecl++;
+          bcOptPos = pos + 1;
         }
       }
       if (ajustes_bc_str_ativo()) {
@@ -5294,7 +5299,11 @@ static void *montar(void *u) {
             snprintf(d.base, sizeof d.base, "%s", BC_TMDB_CAT_BASE);
             snprintf(d.nomeAddon, sizeof d.nomeAddon, "Streaming Brasil");
             d.paginavel = 1;
-            decls[nDecl++] = d;
+            int pos = bcOptPos <= nDecl ? bcOptPos : nDecl;
+            if (pos < nDecl) memmove(&decls[pos + 1], &decls[pos], sizeof(Decl) * (size_t)(nDecl - pos));
+            decls[pos] = d;
+            nDecl++;
+            bcOptPos = pos + 1;
           }
           if (tipoModo != 1 && nDecl < DECL_MAX) {
             Decl d;
@@ -5307,7 +5316,11 @@ static void *montar(void *u) {
             snprintf(d.base, sizeof d.base, "%s", BC_TMDB_CAT_BASE);
             snprintf(d.nomeAddon, sizeof d.nomeAddon, "Streaming Brasil");
             d.paginavel = 1;
-            decls[nDecl++] = d;
+            int pos = bcOptPos <= nDecl ? bcOptPos : nDecl;
+            if (pos < nDecl) memmove(&decls[pos + 1], &decls[pos], sizeof(Decl) * (size_t)(nDecl - pos));
+            decls[pos] = d;
+            nDecl++;
+            bcOptPos = pos + 1;
           }
         }
       }
