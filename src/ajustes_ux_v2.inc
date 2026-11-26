@@ -233,9 +233,9 @@ static void aj2MenuValor(int sec, char *b, size_t n) {
     case AJS_APARENCIA:   // "Frost · Vidro ligado"
       snprintf(b, n, "%s · %s", i18n(textoValor(AJ_FUNDO)), i18n(lig(AJ_VIDRO) ? "Vidro ligado" : "Sem vidro"));
       return;
-    case AJS_REPRODUCAO:   // "4K · Fonte: o Nuvio escolhe"
+    case AJS_REPRODUCAO:   // "4K · Fonte: o BestCine escolhe"
       snprintf(b, n, "%s · %s", i18n(textoValor(AJ_QUALIDADE)),
-               i18n(lig(AJ_FONTE_MANUAL) ? "Fonte: você escolhe" : "Fonte: o Nuvio escolhe"));
+               i18n(lig(AJ_FONTE_MANUAL) ? "Fonte: você escolhe" : "Fonte: o BestCine escolhe"));
       return;
     case AJS_FONTES: snprintf(b, n, "%s", ajEstadoAcao(AJ_ADDONS)); return;
     case AJS_IDIOMAS: {   // "Portugues · Audio: Original do titulo"
@@ -682,7 +682,7 @@ static float aj2GradeColW(void) { return (aj2GradeR().w - 2 * AJ2_G_PAD - 2 * AJ
 static int aj2GradeLinha(int s) { int k = 0; while (s - k > 0 && aj2Grupo(s - k - 1) == aj2Grupo(s)) k++; return k; }
 static float aj2GradeChipY(void) { return aj2GradeR().y + 45.0f; }
 static float aj2GradeDescY(void) { return aj2GradeChipY() + AJ2_G_CHIP + 32.0f + (ajRetrato() ? AJ2_G_CHIP + 20.0f : 0.0f); }
-static float aj2GradeCabY(void) { return aj2GradeDescY() + AJ2_G_DESC + 22.0f; }
+static float aj2GradeCabY(void) { return aj2GradeDescY() - 8.0f; }
 static float aj2GradeCartaoH(void) {
   GfxRect g = aj2GradeR();
   float util = g.y + g.h - 57.0f - (aj2GradeCabY() + AJ2_G_CAB), h;
@@ -941,7 +941,7 @@ static void aj2GradeCartaoDesenhar(int s, float f) {
 #define AJ2_L_ICO   56.0f
 static float aj2LRh = AJ2_L_RMAX;
 static int aj2Lista(void) { return ajustes_layout_lista(); }
-static float aj2LTopo(void) { return aj2GradeDescY() + AJ2_G_DESC + 8.0f + (ajRetrato() ? AJ2_G_DESC + 20.0f : 0.0f); }
+static float aj2LTopo(void) { return aj2GradeDescY() - 12.0f; }
 static float aj2LBase(void) { GfxRect g = aj2GradeR(); return g.y + g.h - AJ2_L_PE; }
 static float aj2LTextoX(GfxRect r) { return r.x + 22.0f + AJ2_L_ICO + 26.0f; }
 static const char *aj2LDesc(int sec) {

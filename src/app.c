@@ -5258,153 +5258,24 @@ void app_atualizar(float dt, Uint32 agora) {
   // grava as marcas da 2.0.1 e da 2.0.2, que entao nao abrem nunca mais. A
   // condicao (Home pronta, sem player nem pagina do titulo) mora nele, onde o
   // teste a exercita.
-  novcartao_decidir(tela == TELA_HOME && homePronta, player_aberto(), detail_aberto());
-  if (tela == TELA_HOME && homePronta && !player_aberto() && !detail_aberto()) {
-    // A 2.0.2 antes da 2.0.1: ela substitui o cartao da 2.0.1.
-    novidades202_primeira_vez();
-    novidades201_primeira_vez();
-    novidades20_primeira_vez();
-  }
-  if (tela == TELA_HOME && homePronta && !player_aberto() && !detail_aberto() && !novidades170_aberto() && !novidades180_aberto() && !novidades20_aberto() && !novidades201_aberto() && !novidades202_aberto() && !novcartao_aberto() && !dicascontrole_ocupado()) {
-    // Esta e a primeira explicacao da versao: aparece antes dos demais
-    // cartoes de onboarding. Depois de OK, o bloco abaixo continua a fila
-    // antiga no quadro seguinte.
-    // Com o cartao da 1.4.2 ainda por vir, a apresentacao espera: ele mesmo
-    // convida para o diagnostico e, ao fechar, dispensa a apresentacao nesta
-    // sessao (novidades142.c) — dois avisos seguidos sobre a mesma coisa.
-    if (!novidades142_pendente()) diagnostico_intro_primeira_vez();
-    if (!diagnostico_intro_aberto()) {
-    registro_aviso_primeira_vez();
-    // Mesmo lugar e mesma razao: o explicador de "Salvos" fala de uma tecla do
-    // controle, e ensinar tecla enquanto a pessoa enquadra um QR no celular nao
-    // ensina nada. Ele tambem espera o cartao do log sair — dois cartoes de
-    // primeira vez ao mesmo tempo seria um em cima do outro.
-    if (!registro_aberto()) sintro_primeira_vez();
-    // O cartao do Guia de TV espera o de Salvos sair — dois cartoes de
-    // primeira vez ao mesmo tempo seria um em cima do outro.
-    if (!registro_aberto() && !sintro_aberto()) novidades_primeira_vez();
-    // O CARTAO DA 1.1 VEM DEPOIS DO DO GUIA, e nao antes: quem instala esta
-    // versao vindo de uma anterior a do Guia recebe os dois, e o do Guia fala
-    // de um recurso que a 1.1 pressupoe (o botao AZUL abrindo o guia aparece na
-    // pagina dos botoes coloridos). Ler na ordem em que as coisas chegaram e o
-    // unico jeito de a segunda explicacao fazer sentido.
-    //
-    // Ele vem ANTES do aviso de versao nova, e isso importa: o de versao nova
-    // fala da PROXIMA atualizacao, e a pagina 5 deste explica como ela se
-    // instala. Invertido, a pessoa apertaria "Atualizar agora" antes de saber
-    // o que acontece sem o Homebrew Channel.
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !pipintro_aberto())
-      novidades11_primeira_vez();
-    // O cartao da 1.2 so depois do da 1.1: quem nunca viu nenhum ve na ordem
-    // em que as coisas chegaram, e quem ja viu o da 1.1 ve so o da 1.2.
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !pipintro_aberto())
-      novidades12_primeira_vez();
-    // O da 1.3 depois do da 1.2, pela mesma razao.
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() &&
-        !pipintro_aberto())
-      novidades13_primeira_vez();
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() &&
-        !novidades131_aberto() && !pipintro_aberto())
-      novidades131_primeira_vez();
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() &&
-        !novidades131_aberto() && !novidades132_aberto() && !pipintro_aberto())
-      novidades132_primeira_vez();
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() &&
-        !novidades131_aberto() && !novidades132_aberto() && !novidades133_aberto() && !pipintro_aberto())
-      novidades133_primeira_vez();
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() &&
-        !novidades131_aberto() && !novidades132_aberto() && !novidades133_aberto() &&
-        !novidades134_aberto() && !pipintro_aberto())
-      novidades134_primeira_vez();
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() &&
-        !novidades131_aberto() && !novidades132_aberto() && !novidades133_aberto() &&
-        !novidades134_aberto() && !novidades139_aberto() && !pipintro_aberto())
-      novidades139_primeira_vez();
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() &&
-        !novidades131_aberto() && !novidades132_aberto() && !novidades133_aberto() &&
-        !novidades134_aberto() && !novidades139_aberto() && !novidades142_aberto() &&
-        !pipintro_aberto())
-      novidades142_primeira_vez();
-    // O da 1.4.8 depois do da 1.4.2: na ordem em que as coisas chegaram.
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() &&
-        !novidades131_aberto() && !novidades132_aberto() && !novidades133_aberto() &&
-        !novidades134_aberto() && !novidades139_aberto() && !novidades142_aberto() &&
-        !novidades148_aberto() && !novidades170_aberto() && !novidades180_aberto() && !novidades20_aberto() && !pipintro_aberto())
-      novidades148_primeira_vez();
-    // A 1.7 no lugar da 1.6.0 (a 1.6.6 nunca saiu; como a 1.6.0 tomou o da
-    // 1.5.2): uma apresentacao por aparelho, depois da cor viva. Quem nao viu
-    // a da 1.6.0 nao a recebe mais; a desta versao cobre.
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() &&
-        !novidades131_aberto() && !novidades132_aberto() && !novidades133_aberto() &&
-        !novidades134_aberto() && !novidades139_aberto() && !novidades142_aberto() &&
-        !novidades148_aberto() && !novidades170_aberto() && !novidades180_aberto() && !novidades20_aberto() && !pipintro_aberto())
-      novidades170_primeira_vez();
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() &&
-        !novidades131_aberto() && !novidades132_aberto() && !novidades133_aberto() &&
-        !novidades134_aberto() && !novidades139_aberto() && !novidades142_aberto() && !novidades148_aberto() && !novidades170_aberto() && !novidades180_aberto() &&
-        !novidades1312_aberto() && !pipintro_aberto())
-      novidades1312_primeira_vez();
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() &&
-        !novidades131_aberto() && !novidades132_aberto() && !novidades133_aberto() &&
-        !novidades134_aberto() && !novidades139_aberto() && !novidades1312_aberto() && !novidades142_aberto() && !novidades148_aberto() && !novidades170_aberto() && !novidades180_aberto() && !novidades20_aberto() && !telemetria_aberto() && !pipintro_aberto())
-      telemetria_primeira_vez();
-    // AVISO DE VERSAO NOVA: a consulta ao GitHub so parte quando a home esta
-    // de pe (nao disputa a rede com o catalogo), e o cartao so abre quando
-    // nenhum outro cartao de primeira vez esta aberto. Chamada a cada quadro:
-    // a agenda (atualizacao_agenda_vence) decide se ja e hora de reconsultar
-    // (~6 h), e nunca com o mini player tocando.
+  // BestCine TV: apos autenticar, o usuario entra direto na Tela Inicial sem
+  // cartoes de tour/novidades do upstream Nuvio. Mantemos apenas alertas reais
+  // do sistema (atualizacao disponivel, lembretes do usuario e aviso de crash).
+  if (tela == TELA_HOME && homePronta && !player_aberto() && !detail_aberto() && !dicascontrole_ocupado()) {
     if (!player_mini_ativo()) atualizacao_verificar();
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() && !novidades131_aberto() && !novidades132_aberto() && !novidades133_aberto() && !novidades142_aberto() && !novidades148_aberto() && !novidades170_aberto() && !novidades180_aberto() && !novidades20_aberto() && !pipintro_aberto())
+    if (!registro_aberto() && !pipintro_aberto())
       atualizacao_mostrar_se_houver();
-    // RECOMENDACAO DE UM AMIGO: a sondagem parte daqui pelo mesmo motivo que a
-    // do GitHub — com a home de pe ela nao disputa a rede com o catalogo. Sem
-    // NUVIO_REC_URL compilada as duas chamadas sao no-op e nenhuma conexao
-    // abre. O cartao obedece as MESMAS guardas dos outros, mais a do proprio
-    // aviso de versao: dois cartoes ao mesmo tempo seria um por cima do outro.
 #ifndef NV_LEVE
     recomenda_verificar();
 #endif
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() && !novidades131_aberto() && !novidades132_aberto() && !novidades133_aberto() && !novidades134_aberto() && !novidades139_aberto() && !novidades1312_aberto() && !novidades142_aberto() && !novidades148_aberto() && !novidades170_aberto() && !novidades180_aberto() && !novidades20_aberto() && !telemetria_aberto() && !pipintro_aberto() && !atualizacao_aberta())
+    if (!registro_aberto() && !pipintro_aberto() && !atualizacao_aberta())
       recomenda_mostrar_se_houver();
-    // EXPLICADOR DAS TELAS SOCIAIS: mesmas guardas de todos os outros, mais
-    // a do cartao de recomendacao recebida — dois cartoes ao mesmo tempo
-    // seria um por cima do outro. Ele proprio nao abre num pacote sem
-    // NUVIO_REC_URL (recomenda_ativo), e por isso nao ha guarda aqui: um
-    // anuncio de recurso que nao esta no pacote e pior que silencio.
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() && !novidades131_aberto() && !novidades132_aberto() && !novidades133_aberto() && !novidades134_aberto() && !novidades139_aberto() && !novidades1312_aberto() && !novidades142_aberto() && !novidades148_aberto() && !novidades170_aberto() && !novidades180_aberto() && !novidades20_aberto() && !telemetria_aberto() && !pipintro_aberto() && !atualizacao_aberta() &&
+    if (!registro_aberto() && !pipintro_aberto() && !atualizacao_aberta() &&
         !recomenda_aberta())
-      recintro_primeira_vez();
-    // LEMBRETE VENCIDO: o unico aviso que esta TV consegue dar. Ultimo da fila
-    // pela mesma razao de todos os outros — dois cartoes juntos seria um por
-    // cima do outro —, e sem consulta de rede nenhuma: o que ele mostra ja
-    // esta em disco desde que o dono apertou "Lembrar-me".
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() && !novidades131_aberto() && !novidades132_aberto() && !novidades133_aberto() && !novidades134_aberto() && !novidades139_aberto() && !novidades1312_aberto() && !novidades142_aberto() && !novidades148_aberto() && !novidades170_aberto() && !novidades180_aberto() && !novidades20_aberto() && !telemetria_aberto() && !pipintro_aberto() && !atualizacao_aberta() &&
-        !recomenda_aberta() && !recintro_aberto())
       agendaviso_mostrar_se_houver();
-    // O CARTAO DO CRASH, depois do lembrete e pelas mesmas regras: um cartao
-    // por vez, com a home de pe.
-    if (!registro_aberto() && !sintro_aberto() && !novidades_aberto() &&
-        !novidades11_aberto() && !novidades12_aberto() && !novidades13_aberto() && !novidades131_aberto() && !novidades132_aberto() && !novidades133_aberto() && !novidades134_aberto() && !novidades139_aberto() && !novidades1312_aberto() && !novidades142_aberto() && !novidades148_aberto() && !novidades170_aberto() && !novidades180_aberto() && !novidades20_aberto() && !telemetria_aberto() && !pipintro_aberto() && !atualizacao_aberta() &&
-        !recomenda_aberta() && !recintro_aberto() && !agendaviso_aberto())
+    if (!registro_aberto() && !pipintro_aberto() && !atualizacao_aberta() &&
+        !recomenda_aberta() && !agendaviso_aberto())
       avisos_mostrar_se_houver();
-    }
   }
 
   // E o ciclo automatico — nunca com o player aberto: rajada de HTTP no meio
@@ -7035,7 +6906,7 @@ void app_atualizar(float dt, Uint32 agora) {
   novidades201_atualizar(dt, agora);
   novidades202_atualizar(dt, agora);
   novcartao_atualizar(dt, agora);
-  dicascontrole_home_livre(app_home_recebe_teclas(), dt);
+  // BestCine TV: nao disparar onboarding automatico do controle remoto na Home.
   dicascontrole_atualizar(dt, agora);
   telemetria_atualizar(dt, agora);
   recintro_atualizar(dt, agora);
