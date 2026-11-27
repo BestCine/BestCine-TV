@@ -1502,7 +1502,8 @@ static int deMeta(const char *ini, const char *fim, const char *tipo, CatItem *d
 #define BC_TMDB_TEMPO_RAPIDOS_ID "tempo_rapidos"
 #define BC_TMDB_TEMPO_MINI_ID "tempo_miniseries"
 #define BC_TMDB_TEMPO_EPICOS_ID "tempo_epicos"
-#define BC_TMDB_CACHE_SLOTS 32
+#define BC_TMDB_CACHE_SLOTS 16
+#define BC_TMDB_CACHE_SLOTS_LEVE 6
 #define BC_TMDB_CACHE_ITENS 24
 
 typedef struct {
@@ -1534,6 +1535,27 @@ typedef struct {
 
 static pthread_mutex_t bcTmdbCacheTrava = PTHREAD_MUTEX_INITIALIZER;
 static BcTmdbCacheSlot bcTmdbCache[BC_TMDB_CACHE_SLOTS];
+
+extern void tex_orcamento_info(int *mb, long *memTotal, int *fixo, int *slots) __attribute__((weak));
+
+static int bcTmdbMaxSlots(void) {
+#ifdef __EMSCRIPTEN__
+  return BC_TMDB_CACHE_SLOTS_LEVE;
+#else
+  long mem = 0;
+  if (tex_orcamento_info) tex_orcamento_info(NULL, &mem, NULL, NULL);
+  return (mem > 0 && mem <= 1200) ? BC_TMDB_CACHE_SLOTS_LEVE : BC_TMDB_CACHE_SLOTS;
+#endif
+}
+
+void desc_bc_cache_aliviar(void) {
+  pthread_mutex_lock(&bcTmdbCacheTrava);
+  for (int i = 0; i < BC_TMDB_CACHE_SLOTS; i++) {
+    free(bcTmdbCache[i].itens);
+    memset(&bcTmdbCache[i], 0, sizeof bcTmdbCache[i]);
+  }
+  pthread_mutex_unlock(&bcTmdbCacheTrava);
+}
 
 static int deMetaTmdb(const char *p, const char *f, const char *tipoPadrao, CatItem *d);
 
@@ -1853,40 +1875,46 @@ static int bcLerCatalogoTmdb(const char *tipo, const char *id, int pagina,
   int semMais = (pagResp >= totPag);
 
   CatItem *tmp = calloc(BC_TMDB_CACHE_ITENS, sizeof *tmp);
+  CatItem *scratch = malloc(sizeof *scratch);
   int nTmp = 0;
   int nOut = 0;
   const char *p = js_array(corpo, NULL, "results");
-  while (p) {
+  while (p && scratch) {
     const char *f = js_fim(p);
-    CatItem it;
-    if (deMetaTmdb(p, f, ehSerie ? "series" : "movie", &it) && !descOcultaNaoLancado(&it)) {
-      snprintf(it.origem, sizeof it.origem, "%s", BC_TMDB_CAT_ADDON);
+    if (deMetaTmdb(p, f, ehSerie ? "series" : "movie", scratch) && !descOcultaNaoLancado(scratch)) {
+      snprintf(scratch->origem, sizeof scratch->origem, "%s", BC_TMDB_CAT_ADDON);
       int dup = 0;
       for (int j = 0; j < nOut; j++)
-        if (!strcmp(saida[j].imdb, it.imdb)) { dup = 1; break; }
+        if (!strcmp(saida[j].imdb, scratch->imdb)) { dup = 1; break; }
       if (!dup) {
-        if (tmp && nTmp < BC_TMDB_CACHE_ITENS) tmp[nTmp++] = it;
-        if (nOut < max && nOut < quantos) saida[nOut++] = it;
+        if (tmp && nTmp < BC_TMDB_CACHE_ITENS) tmp[nTmp++] = *scratch;
+        if (nOut < max && nOut < quantos) saida[nOut++] = *scratch;
       }
     }
     p = js_prox(f);
   }
+  free(scratch);
   free(corpo);
 
   if (nOut == 0) semMais = 1;
   if (semMaisOut) *semMaisOut = semMais;
 
   if (tmp && nTmp > 0 && pagina <= 2) {
+    if (nTmp < BC_TMDB_CACHE_ITENS) {
+      CatItem *enxuto = realloc(tmp, sizeof(CatItem) * (size_t)nTmp);
+      if (enxuto) tmp = enxuto;
+    }
+    int limSlots = bcTmdbMaxSlots();
     pthread_mutex_lock(&bcTmdbCacheTrava);
     int slot = -1;
     time_t maisVelho = agora + 1;
-    for (int i = 0; i < BC_TMDB_CACHE_SLOTS; i++) {
+    for (int i = 0; i < limSlots; i++) {
       if (bcTmdbCache[i].itens && !strcmp(bcTmdbCache[i].chave, cacheChave)) { slot = i; break; }
       if (!bcTmdbCache[i].itens && slot < 0) slot = i;
     }
     if (slot < 0) {
       slot = 0;
-      for (int i = 0; i < BC_TMDB_CACHE_SLOTS; i++)
+      for (int i = 0; i < limSlots; i++)
         if (bcTmdbCache[i].salvoEm < maisVelho) { maisVelho = bcTmdbCache[i].salvoEm; slot = i; }
     }
     free(bcTmdbCache[slot].itens);

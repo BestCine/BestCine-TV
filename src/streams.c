@@ -1365,6 +1365,19 @@ static long pontosDoAlvo(const Stream *s, const char *alvo) {
       if (REGRAS_VIDAA[k].bate(s)) p += REGRAS_VIDAA[k].pontos;
   }
 #endif
+  // Preferencia de idioma do audio (ex: Portugues por padrao, ou Ingles se o
+  // usuario trocar em Ajustes): fonte HD+ (nao CAM) com o idioma explicitamente
+  // marcado sobe acima de fontes em outro idioma mesmo em resolucao/HDR maior
+  // (ex: 1080p Dublado > 4K HDR Ingles), mantendo 4K no idioma > 1080p no idioma
+  // e nunca superando multas de cache/teto/P2P (>= 140000).
+  if (ajustes_fonte_idioma_audio()) {
+    FonteNota nt;
+    notaDe(s, &nt);
+    if (nt.idioma == FN_IDIOMA_EXPLICITO && nt.tier != FN_TIER_CAM &&
+        (s->altura == 0 || s->altura >= 720)) {
+      p += 25000L;
+    }
+  }
   p -= multasDeAlvo(s, alvo);
   return p;
 }

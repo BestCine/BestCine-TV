@@ -3,6 +3,7 @@
 #include "imdbnota.h"
 #include "notasfontes.h"
 #include "extras.h"
+#include "idbase.h"
 #include "posterprov.h"
 #include "streams.h"
 #include "marco.h"
@@ -728,18 +729,11 @@ static void *buscar(void *arg) {
   // sessao; a ficha TMDB, o MDBList e as recomendacoes nao precisam dele.
   // Antes disto um Trakt desvinculado matava o fio inteiro — e junto com ele
   // morriam os relacionados TMDB, que nao consultam o Trakt em nada.
-  int temTrakt = trakt_cabecalhos(cab, aut, sizeof aut, chave, sizeof chave);
-  // CABECALHOS SEM CONTA, para o unico bloco daqui que nao precisa de uma.
-  // MEDIDO em 16/09/2026: `seasons?extended=episodes,full` responde 200 com
-  // `trakt-api-key` sozinho — o token nunca fez falta ali, e era so por ele
-  // estar amarrado a trakt_cabecalhos() que quem nao vinculou o Trakt ficava
-  // sem NENHUMA nota por episodio (a aba "Avaliações" caia nos cartoes do
-  // filme) e sem os graficos de audiencia, que leem a mesma lista.
-  // Sao vetores PROPRIOS e nao um remendo em `cab`: o `cab` vale para o resto
-  // da funcao, que continua exigindo token de verdade.
+  int ehImdb = idbase_e_imdb(id);
+  int temTrakt = ehImdb ? trakt_cabecalhos(cab, aut, sizeof aut, chave, sizeof chave) : 0;
   const char *cabPub[3];
   char chavePub[140];
-  int temChave = trakt_cabecalhos_publicos(cabPub, chavePub, sizeof chavePub);
+  int temChave = ehImdb ? trakt_cabecalhos_publicos(cabPub, chavePub, sizeof chavePub) : 0;
 
   // O QUE JA FOI VISTO VEM PRIMEIRO.
   //
@@ -939,7 +933,7 @@ static void *buscar(void *arg) {
   // O POST por provedor so lia "rating" e voltava 0/11 com o corpo novo.
   // mdblist_enabled corta a CONSULTA — as notas que o app tem por conta
   // propria (Trakt direto, IMDb do catalogo) nao dependem desta chave.
-  if (parte != 0 && mdbChave[0] && ajustes_mdblist_ligado()) {
+  if (parte != 0 && ehImdb && mdbChave[0] && ajustes_mdblist_ligado()) {
     char u[300], amostra[128];
     int status = 0, pedidas = 0, comNota = 0;
     snprintf(u, sizeof u, "https://api.mdblist.com/imdb/%s/%s?apikey=%s",
@@ -1065,7 +1059,8 @@ static void *buscar(void *arg) {
     // O id do TMDB so fica no catalogo DEPOIS do enriquecimento do elenco; na
     // PRIMEIRA abertura de um titulo ele ainda e 0, e a aba nao apareceria
     // justamente na visita em que o dono esta olhando. /find resolve na hora.
-    if (chave[0] && idT <= 0) {
+    if (chave[0] && idT <= 0 && !strncmp(id, "tmdb:", 5)) idT = atol(id + 5);
+    if (chave[0] && idT <= 0 && ehImdb) {
       snprintf(url, sizeof url,
                "https://api.themoviedb.org/3/find/%s?api_key=%s"
                "&external_source=imdb_id", id, chave);
@@ -1727,23 +1722,15 @@ static void esquecerPedido(void) {
 
 void extras_pedir(const char *imdb, int serie, long tmdbId) {
   char id[24];
-  const char *dp;
-  if (!imdb || imdb[0] != 't' || !strncmp(imdb, "tmdb:", 5)) { esquecerPedido(); return; }
-  // Sem nenhuma fonte online nao ha o que buscar: o Trakt alimenta vistos,
-  // nota, comentarios e related de sobra; a chave TMDB alimenta ficha,
-  // produtoras e "Mais como este"; o MDBList alimenta as notas por fonte.
-  // Antes o teste era so trakt_ativo — e uma conta sem Trakt perdia ate o
-  // que nao depende dele.
+  int ehTmdb;
+  if (!imdb || !imdb[0]) { esquecerPedido(); return; }
+  ehTmdb = !strncmp(imdb, "tmdb:", 5);
+  if (!ehTmdb && imdb[0] != 't') { esquecerPedido(); return; }
   if (!trakt_ativo() && !desc_chave_tmdb()[0] &&
       !(mdbChave[0] && ajustes_mdblist_ligado())) { esquecerPedido(); return; }
-  // O campo do catalogo pode vir com episodio ("tt9737326:2:1"), que e o
-  // formato que os addons de fonte usam. O Trakt so conhece o id do TITULO —
-  // com o sufixo ele responde 404 e as tres abas ficavam vazias em toda serie.
-  dp = strchr(imdb, ':');
-  if (dp) { size_t n = (size_t)(dp - imdb);
-            if (n >= sizeof id) n = sizeof id - 1;
-            memcpy(id, imdb, n); id[n] = 0; }
-  else snprintf(id, sizeof id, "%s", imdb);
+  idbase_copiar(imdb, id, sizeof id);
+  if (!id[0]) { esquecerPedido(); return; }
+  if (ehTmdb && tmdbId <= 0) tmdbId = atol(id + 5);
   imdb = id;
   pthread_mutex_lock(&trava);
   // Mesmo id com OUTRO tipo e outro pedido: um titulo de tipo incerto
@@ -2090,16 +2077,10 @@ const char *extras_trailer_miniatura(int i) {
 }
 
 static void normalizarHeroId(const char *imdb, char *dst, size_t cap) {
-  const char *p;
-  size_t n;
   if (!dst || !cap) return;
   dst[0] = 0;
-  if (!imdb || imdb[0] != 't' || !strncmp(imdb, "tmdb:", 5)) return;
-  p = strchr(imdb, ':');
-  n = p ? (size_t)(p - imdb) : strlen(imdb);
-  if (n >= cap) n = cap - 1;
-  memcpy(dst, imdb, n);
-  dst[n] = 0;
+  if (!imdb || (!idbase_e_imdb(imdb) && strncmp(imdb, "tmdb:", 5))) return;
+  idbase_copiar(imdb, dst, cap);
 }
 
 // A resposta e a mesma selecao (e a mesma ordem) usada pelos extras da
@@ -2173,7 +2154,8 @@ static void *lacoHeroTrailer(void *ignorado) {
     snprintf(chave, sizeof chave, "%s", desc_chave_tmdb());
     if (chave[0]) {
       long idT = tmdb;
-      if (idT <= 0) {
+      if (idT <= 0 && !strncmp(id, "tmdb:", 5)) idT = atol(id + 5);
+      if (idT <= 0 && idbase_e_imdb(id)) {
         snprintf(url, sizeof url,
                  "https://api.themoviedb.org/3/find/%s?api_key=%s&external_source=imdb_id",
                  id, chave);

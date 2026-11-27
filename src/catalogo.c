@@ -329,13 +329,7 @@ unsigned long long cat_historico_geracao(void) {
 }
 
 static void id_base(const char *origem, char *destino, size_t tam) {
-  size_t n = 0;
-  if (!destino || tam == 0) return;
-  if (origem) {
-    while (origem[n] && origem[n] != ':' && n + 1 < tam) n++;
-    memcpy(destino, origem, n);
-  }
-  destino[n] = 0;
+  idbase_copiar(origem, destino, tam);
 }
 
 static const char *tipo_base(const char *tipo) {

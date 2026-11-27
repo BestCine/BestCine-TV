@@ -26,6 +26,8 @@
 // Pede (em fio proprio) o trailer de `imdb`. Idempotente: nao repete o pedido
 // de um titulo que ja tem resposta valida ou que esta em voo.
 void        trailerimdb_pedir(const char *imdb);
+// Variante com tipo conhecido (0 = filme, 1 = serie) para resolver ids "tmdb:<id>".
+void        trailerimdb_pedir_tipo(const char *imdb, int serie);
 // URL do MP4 (a melhor ate 1080p) ou NULL enquanto nao ha. `nome` recebe o
 // titulo do video ("Trailer", "Official Trailer 2") quando nao e NULL.
 const char *trailerimdb_url(const char *imdb, const char **nome);

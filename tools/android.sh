@@ -146,10 +146,15 @@ if [ "$DEBUG_ONLY" = 0 ] && [ -n "${NUVIO_KEYSTORE:-}" ]; then
   if [ "$LITE" != 1 ]; then
     cp "$APP_BUILD/outputs/apk/release/app-release.apk" "$SAIDA/Nuvio-$VER-android.apk"
     APKS+=("$SAIDA/Nuvio-$VER-android.apk")
-    "${GR[@]}" -Pnuvio.apkLite=1 assembleRelease
+    if [ "${NUVIO_PULAR_LITE:-0}" != 1 ]; then
+      "${GR[@]}" -Pnuvio.apkLite=1 assembleRelease
+      cp "android/app/build-lite/outputs/apk/release/app-release.apk" "$SAIDA/Nuvio-$VER-android-lite-universal.apk"
+      APKS+=("$SAIDA/Nuvio-$VER-android-lite-universal.apk")
+    fi
+  else
+    cp "android/app/build-lite/outputs/apk/release/app-release.apk" "$SAIDA/Nuvio-$VER-android-lite-universal.apk"
+    APKS+=("$SAIDA/Nuvio-$VER-android-lite-universal.apk")
   fi
-  cp "android/app/build-lite/outputs/apk/release/app-release.apk" "$SAIDA/Nuvio-$VER-android-lite-universal.apk"
-  APKS+=("$SAIDA/Nuvio-$VER-android-lite-universal.apk")
 else
   echo "  release fora: sem NUVIO_KEYSTORE"
 fi

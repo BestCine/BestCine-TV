@@ -144,6 +144,7 @@ const char *desc_tmdb_idioma(void);
 // daria duas fontes de verdade para o mesmo segredo.
 const char *desc_chave_tmdb(void);
 const char *desc_chave_tmdb_reserva(void);   // para artereserva.c: ignora o ajuste "TMDB"
+void        desc_bc_cache_aliviar(void);     // libera cache RAM dos catalogos BestCine sob pressao de memoria
 
 // "2026-07-29" -> "29 de julho de 2026". Vive aqui porque a descoberta ja
 // precisava dela para a data de episodio; a tabela "Detalhes do Filme" e o

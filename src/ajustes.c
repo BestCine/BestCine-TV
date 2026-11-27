@@ -4783,6 +4783,71 @@ static void efeitos720Migrar(int legado) {
   if (!legado || gravar()) dados_gravar("efeitos720-205.txt", "1\n");
 }
 
+#ifdef NV_TPK40
+// Migracao unica para Tizen 4.0-5.5 (NuvioTpk40): GPUs Mali antigas piscam
+// com cor dinamica + animacoes/vidro automaticos. Aplica o perfil estavel uma
+// vez para instalacoes ja existentes, mantendo qualquer troca manual futura.
+static void tpk40EstavelMigrar(int legado) {
+  char *m = dados_ler("tpk40-estavel-1114.txt");
+  int mudou = 0;
+  if (m) { free(m); return; }
+  if (legado) {
+    if (temaDinamico())            { valor[AJ_TEMA] = 2; mudou = 1; }
+    if (valor[AJ_ANIM] != 1)       { valor[AJ_ANIM] = 1; mudou = 1; }
+    if (valor[AJ_GPU_EFEITOS] == 0){ valor[AJ_GPU_EFEITOS] = 3; mudou = 1; }
+    if (valor[AJ_VIDRO] == 2)      { valor[AJ_VIDRO] = 1; mudou = 1; }
+    if (valor[AJ_VIDRO_FOSCO] == 2){ valor[AJ_VIDRO_FOSCO] = 0; mudou = 1; }
+    if (valor[AJ_VIDRO_QUALIDADE] == 0) { valor[AJ_VIDRO_QUALIDADE] = 1; mudou = 1; }
+    if (valor[AJ_FUNDO] == 2)      { valor[AJ_FUNDO] = 0; mudou = 1; }
+    if (valor[AJ_HERO_TRANSICAO] == 0) { valor[AJ_HERO_TRANSICAO] = 1; mudou = 1; }
+    if (mudou)
+      printf("[ajustes] Tizen 4/5 (TPK40): perfil visual estavel aplicado (sem cor/animacao dinamica)\n");
+  }
+  if (!mudou || gravar()) dados_gravar("tpk40-estavel-1114.txt", "1\n");
+}
+#endif
+
+#if defined(NV_ANDROID) && defined(NV_P2P_MOTOR)
+// Migracao unica para Android TV / Mi Box com motor P2P embutido: quem veio da
+// build Lite anterior tinha P2P salvo como Desligado (1). Liga uma vez para
+// ativar reproducao P2P nativa sem precisar de Debrid; desligamentos manuais
+// futuros continuam sendo respeitados.
+static void androidP2pPadraoMigrar(int legado) {
+  char *m = dados_ler("android-p2p-1114.txt");
+  int mudou = 0;
+  if (m) { free(m); return; }
+  if (legado && valor[AJ_P2P_LIGADO] != 0) {
+    valor[AJ_P2P_LIGADO] = 0;
+    mudou = 1;
+    printf("[ajustes] Android TV com motor P2P embutido: P2P nativo ativado por padrao\n");
+  }
+  if (!mudou || gravar()) dados_gravar("android-p2p-1114.txt", "1\n");
+}
+#endif
+
+// Migracao unica BestCine: ativa Portugues como idioma de audio padrao e liga a
+// preferencia de idioma na escolha automatica para instalacoes que ainda tinham
+// o padrao antigo (Original + Desligado). Quem escolheu Ingles ou outro idioma
+// manualmente continua intacto, e qualquer troca futura e respeitada.
+static void audioPtPadraoMigrar(int legado) {
+  char *m = dados_ler("audio-pt-1114.txt");
+  int mudou = 0;
+  if (m) { free(m); return; }
+  if (legado) {
+    if (valor[AJ_AUD_LINGUA] == LING_OPC_ORIGINAL) {
+      valor[AJ_AUD_LINGUA] = 2; /* OPCOES_COD[2] = "pt" */
+      mudou = 1;
+    }
+    if (valor[AJ_FONTE_IDIOMA_AUDIO] == 1) {
+      valor[AJ_FONTE_IDIOMA_AUDIO] = 0; /* V_LIGA: 0 = Ligado */
+      mudou = 1;
+    }
+    if (mudou)
+      printf("[ajustes] BestCine: idioma de audio -> Portugues + preferencia na escolha automatica\n");
+  }
+  if (!mudou || gravar()) dados_gravar("audio-pt-1114.txt", "1\n");
+}
+
 // --- LISTAS E GUIAS POR URL (M9) --------------------------------------------------
 // M3U e XMLTV deste perfil (ltv.h). A tela mostra "M3U · host", nunca a URL.
 // Cache local da lista (o desenho chama textoValor varias vezes por quadro) e a
@@ -4891,6 +4956,14 @@ void ajustes_dir(const char *dir) {
     // Nunca gravou nada: o idioma nasce automatico (o padrao de valor[]).
     valor[AJ_IDIOMA] = 0;
     performanceAutoMigrar();
+#ifdef NV_TPK40
+    tpk40EstavelMigrar(0);
+#endif
+#if defined(NV_ANDROID) && defined(NV_P2P_MOTOR)
+    androidP2pPadraoMigrar(0);
+#endif
+    audioPtPadraoMigrar(0);
+    aplicarIdioma(AJ_AUD_LINGUA);
 #ifdef NV_TEX_MB_FIXO
     memoriaMigrar();
     if (valor[AJ_TEX_MB] > 0) tex_definir_orcamento_mb(ajustes_tex_mb());
@@ -5259,6 +5332,13 @@ void ajustes_dir(const char *dir) {
   // Owner: reset even saved manual performance choices once per device.
   // Run after legacy migrations so they cannot replace Automatic.
   performanceAutoMigrar();
+#ifdef NV_TPK40
+  tpk40EstavelMigrar(1);
+#endif
+#if defined(NV_ANDROID) && defined(NV_P2P_MOTOR)
+  androidP2pPadraoMigrar(1);
+#endif
+  audioPtPadraoMigrar(1);
   // O limite mora em fileiras.c; esta linha e so o espelho dele. Ler daqui em
   // vez de gravar evita a divergencia: o arquivo de ajustes nao guarda o
   // numero, entao nao ha como os dois discordarem.

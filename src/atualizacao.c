@@ -129,7 +129,8 @@ static void at_sha256_hex(const unsigned char *buf, size_t n, char *hex65) {
 }
 #endif
 
-#define AT_URL   "https://api.github.com/repos/BestCine/BestCine-TV/releases/latest"
+#define AT_URL_PRIMARIA "https://bestcine.github.io/latest-bestcine-tv.json"
+#define AT_URL          "https://api.github.com/repos/BestCine/BestCine-TV/releases/latest"
 #define AT_ARQ   "atualizacao-vista.txt"
 #define AT_PAGINA "https://github.com/BestCine/BestCine-TV/releases"
 #define AT_APPID  NV_APP_ID
@@ -566,7 +567,11 @@ static int fioConsulta(void *arg) {
   SDL_UnlockMutex(mtx);
   return 0;  // hosted app e sempre current
 #endif
-  corpo = rede_baixar(AT_URL, 12);
+  corpo = rede_baixar(AT_URL_PRIMARIA, 12);
+  if (!corpo || !strstr(corpo, "\"tag_name\"")) {
+    free(corpo);
+    corpo = rede_baixar(AT_URL, 12);
+  }
   if (!corpo) { printf("[atualizacao] sem resposta do GitHub\n"); fflush(stdout); }
   else {
     textoJson(corpo, "tag_name", tag, sizeof tag);

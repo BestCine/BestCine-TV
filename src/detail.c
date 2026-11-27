@@ -1660,7 +1660,7 @@ static void abrirInterno(const HomeItem *it) {
     // CORS dela so aceita imdb.com — #136).
     if (trailer_suportado() && ci && ci->imdb[0]) {
       trailerapple_pedir(ci->imdb, ci->titulo, ci->meta, ehSerie());
-      if (!trailerfonte_tizen() || trailerfonte_imdb_tizen()) trailerimdb_pedir(ci->imdb);
+      if (!trailerfonte_tizen() || trailerfonte_imdb_tizen()) trailerimdb_pedir_tipo(ci->imdb, ehSerie());
     }
   }
   // A aba marcada tem de ser a da temporada de "Continuar assistindo", nao a

@@ -13,7 +13,7 @@
   // SO VALE PARA INSTALACAO NOVA: quem ja tem ajustes.txt continua com o que
   // esta gravado la, porque o arquivo ganha do padrao — de proposito, senao
   // toda atualizacao desfaria escolha de usuario.
-  LING_OPC_ORIGINAL, /* idioma de audio: Original do titulo */
+  2,                /* idioma de audio: Portugues (OPCOES_COD[2] = "pt") */
   0,                /* painel ao pausar: ligado (o default do web) */
   1,                /* escolher a fonte ao reproduzir: DESLIGADO (V_LIGA: 1 = Desligado) */
   0,                /* fonte automatica: melhor fonte (a regra de sempre) */
@@ -96,8 +96,15 @@
   // ter escolhido e pior do que ler em ingles sem ter escolhido — por isso o
   // ultimo degrau e o ingles. Quem prefere outro troca em Ajustes -> Interface,
   // e a escolha fica gravada (e desliga o automatico).
+#ifdef NV_TPK40
+  /* Tizen 4.0-5.5 (Mali-4xx / Midgard): animacoes reduzidas e cor fixa
+     evitam cintilacao/flicker de GPU e compositor (ex: Samsung UN32T4300). */
+  0, 1, 0,          /* language, animations Reduced, resolution Automatic */
+  2,                /* tema (cor de destaque): Oceano (fixo, sem cor dinamica) */
+#else
   0, 2, 0,          /* language, animations Automatic, resolution Automatic */
   AJ_TEMA_DINAMICA, /* tema (cor de destaque): Da arte desde a 2.0 (dono, 05/10/2026: era Imersiva) */
+#endif
   0,                /* cor da logo (so com tema dinamico): ligada */
   // O COMENTARIO ANTIGO AQUI ESTAVA ERRADO, e o erro so nao machucou por sorte.
   // Ele dizia `0, 0, /* versao, espaco */` logo depois do idioma, mas esta
@@ -151,9 +158,18 @@
   0,                /* trailer do cartaz em foco: Desligado (AJ_TRAILER_CARTAZ_*; DEFAULT do web) */
   0,                /* itens por fileira: 12, como sempre foi (ver V_ITENS_FIL) */
   TXT_FAMILIA_INTER,/* fonte da interface: independente da legenda */
+#ifdef NV_TPK40
+  3,                /* efeitos visuais no Tizen 4/5: Minimos (anti-flicker Mali) */
+  1,                /* glass interface no Tizen 4/5: Desligado (paineis solidos) */
+#else
   0,                /* efeitos visuais do .tpk: automatico (adaptativo, ate o nivel 1) */
   2,                /* glass interface: Automatic */
+#endif
+#if defined(NV_ANDROID) && defined(NV_P2P_MOTOR)
+  0,                /* P2P nativo embutido no Android TV / Mi Box: LIGADO (V_LIGA: 0 = Ligado) */
+#else
   1,                /* servidor P2P: DESLIGADO (V_LIGA: 1 = Desligado) */
+#endif
   0, 0,             /* endereco, testar: acoes */
   0,                /* posteres personalizados: DESLIGADO (indice 0) */
   0, 0, 0, 0, 0, 0,/* endereco, token, parametros, chave, modelo, testar: acoes */
@@ -171,7 +187,11 @@
   22,               /* espera do trailer no destaque: 2,2 s (em decimos de segundo) */
   90,               /* percentual assistido: 90%, o numero fixo de antes */
   1,                /* addons do perfil principal: DESLIGADO (V_LIGA: 1); dono 09/10 */
+#ifdef NV_TPK40
+  1,                /* transicao do destaque no Tizen 4/5: Esmaecer (sem deslize dinamico) */
+#else
   0,                /* transicao do destaque: Deslizar */
+#endif
   // Arte do addon: todas DESLIGADAS (V_LIGA: 1 = Desligado) — o visual de antes.
   1, 1, 1, 1,       /* posteres, fundo, logo do addon; arte das pastas da conta */
   // LIGADO: e o que o oficial mostra com o pacote de selos da wiki importado,
@@ -199,9 +219,15 @@
   0,                /* guia de uso: acao */
   0, 0, 0,          /* pacote de selos (espelho de selospacote_ativo), adicionar e remover: o embutido */
   UI_SIZE_AUTO,     /* Untouched interface size follows the physical panel. */
+#ifdef NV_TPK40
+  0,                /* fundo no Tizen 4/5: Arte (sem Frost/desfoque) */
+  0,                /* glass opacity: 60%, owner default */
+  0,                /* frosted glass no Tizen 4/5: Desligado (sem blur Kawase) */
+#else
   2,                /* fundo: Frost desde a 2.0 (FUNDO_FROST; dono, 05/10/2026) */
   0,                /* glass opacity: 60%, owner default */
   2,                /* frosted glass: Automatic */
+#endif
 
   0, /* app icon: Original */
 
@@ -296,7 +322,7 @@
   0, /* provider setup: shared legacy accounts; choice itself belongs to this profile */
   0, /* Mural tile titles (#521): Ligado, as always, local */
   0, /* friends row: Feed (9A) */
-  1, /* audio language in the automatic choice: off (V_LIGA 1), behaviour unchanged */
+  0, /* audio language in the automatic choice: on (V_LIGA 0), BestCine PT-BR default */
   0, /* second audio language: Da conta */
 #ifdef NV_ANDROID
   0, /* Baixar registro: acao local, sem preferencia gravada */
@@ -311,7 +337,11 @@
   0, /* opening screen style (#205): Center (A3) */
   0, /* poster menu: Full, device-local */
   0, /* row title style (#205): Classic */
+#ifdef NV_TPK40
+  1, /* glass quality no Tizen 4/5: Desempenho (sem desfoque) */
+#else
   0, /* glass quality: Automatica */
+#endif
   0, /* Dynamic layout background (#205): Gray */
   12, /* Dynamic layout background colour (#205): Ocean */
   0, /* text and component scale: 85% */

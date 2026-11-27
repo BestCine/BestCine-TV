@@ -1,4 +1,5 @@
 #include "trailerimdb.h"
+#include "idbase.h"
 #include "rede.h"
 #include "js.h"
 #include "dados.h"
@@ -14,6 +15,9 @@
 #include <time.h>
 #include <sys/stat.h>
 
+extern const char *desc_chave_tmdb(void) __attribute__((weak));
+extern const char *desc_chave_tmdb_reserva(void) __attribute__((weak));
+
 #ifndef NV_REC_URL
 #define NV_REC_URL ""
 #endif
@@ -23,7 +27,7 @@
 // quem le escolhe pelo teto dos Ajustes.
 #define DEF_MAX 4
 typedef struct {
-  char imdb[16];
+  char imdb[32];
   int  n;
   int  alt[DEF_MAX];
   char url[DEF_MAX][1024];
@@ -32,8 +36,9 @@ typedef struct {
   int  emVoo, respondeu;
 } Entrada;
 static Entrada tab[TR_MAX];
-static int nTab, prox;
+static int nTab, prox, emVooTotal;
 static SDL_mutex *mtx;
+#define TR_MAX_CONCORRENTES 2
 
 static void trancar(void)   { if (!mtx) mtx = SDL_CreateMutex(); SDL_LockMutex(mtx); }
 static void destrancar(void){ SDL_UnlockMutex(mtx); }
@@ -60,11 +65,14 @@ static long expiraDe(const char *url) {
 }
 
 static void caminhoDisco(const char *imdb, char *dst, unsigned tam) {
-  char pasta[512];
+  char pasta[512], limpo[32];
+  size_t i;
   dst[0] = 0;
   if (!dados_caminho(pasta, sizeof pasta, "trailer")) return;
   mkdir(pasta, 0755);
-  snprintf(dst, tam, "%s/%s", pasta, imdb);
+  snprintf(limpo, sizeof limpo, "%s", imdb ? imdb : "");
+  for (i = 0; limpo[i]; i++) if (limpo[i] == ':' || limpo[i] == '/') limpo[i] = '_';
+  snprintf(dst, tam, "%s/%s", pasta, limpo);
 }
 
 // Formato: linha 1 "expira nome", depois uma linha "altura url" por definicao.
@@ -141,10 +149,32 @@ static int escolher(const char *json, Entrada *e) {
   return e->n ? e->alt[0] : 0;
 }
 
+typedef struct { char chave[32]; int serie; } PedidoImdb;
+
+static void resolverImdbDeTmdb(long tmdbId, int serie, char *dst, size_t cap) {
+  const char *ck = NULL;
+  char url[320], *resp;
+  dst[0] = 0;
+  if (tmdbId <= 0) return;
+  if (desc_chave_tmdb) ck = desc_chave_tmdb();
+  if ((!ck || !ck[0]) && desc_chave_tmdb_reserva) ck = desc_chave_tmdb_reserva();
+  if (!ck || !ck[0]) return;
+  snprintf(url, sizeof url, "https://api.themoviedb.org/3/%s/%ld/external_ids?api_key=%s",
+           serie ? "tv" : "movie", tmdbId, ck);
+  resp = rede_baixar(url, 8);
+  if (resp) {
+    js_texto(resp, NULL, "imdb_id", dst, cap);
+    free(resp);
+  }
+  if (strncmp(dst, "tt", 2)) dst[0] = 0;
+}
+
 static void *buscar(void *arg) {
-  char imdb[16];
+  PedidoImdb *ped = (PedidoImdb *)arg;
+  char chave[32], imdb[24] = "";
+  int serie = ped ? ped->serie : 0;
   char consulta[512];
-  char *corpo;
+  char *corpo = NULL;
   Entrada lida;
   static const char *const cabs[] = {
     "Accept: application/json",
@@ -152,33 +182,41 @@ static void *buscar(void *arg) {
     "Referer: https://www.imdb.com/",
     NULL };
   Entrada *e;
-  snprintf(imdb, sizeof imdb, "%s", (const char *)arg);
-  free(arg);
-  // %7B = {  %22 = "  %28 = (  %29 = )  %3A = :  %7D = }
-  snprintf(consulta, sizeof consulta,
-    "https://api.graphql.imdb.com/?query=%%7Btitle%%28id%%3A%%22%s%%22%%29%%7BprimaryVideos%%28first%%3A1%%29%%7Bedges%%7Bnode%%7Bname%%7Bvalue%%7DplaybackURLs%%7Burl%%20videoMimeType%%20videoDefinition%%7D%%7D%%7D%%7D%%7D%%7D",
-    imdb);
+  snprintf(chave, sizeof chave, "%s", ped ? ped->chave : "");
+  free(ped);
+  if (!strncmp(chave, "tt", 2)) {
+    snprintf(imdb, sizeof imdb, "%s", chave);
+  } else if (!strncmp(chave, "tmdb:", 5)) {
+    resolverImdbDeTmdb(atol(chave + 5), serie, imdb, sizeof imdb);
+  }
+  if (imdb[0]) {
+    // %7B = {  %22 = "  %28 = (  %29 = )  %3A = :  %7D = }
+    snprintf(consulta, sizeof consulta,
+      "https://api.graphql.imdb.com/?query=%%7Btitle%%28id%%3A%%22%s%%22%%29%%7BprimaryVideos%%28first%%3A1%%29%%7Bedges%%7Bnode%%7Bname%%7Bvalue%%7DplaybackURLs%%7Burl%%20videoMimeType%%20videoDefinition%%7D%%7D%%7D%%7D%%7D%%7D",
+      imdb);
 #ifdef __EMSCRIPTEN__
-  // SAMSUNG (#136): o navegador nao deixa por o Referer e a API nao manda
-  // CORS a um wgt — a mesma consulta vai pelo servico de recomendacoes, que
-  // devolve a resposta crua. Sem ele na build nao ha por onde (e
-  // trailerfonte_imdb_tizen ja tirou o IMDb da ordem).
-  (void)cabs;
-  if (NV_REC_URL[0]) snprintf(consulta, sizeof consulta, "%s/v1/trailer/imdb?id=%s", NV_REC_URL, imdb);
-  else consulta[0] = 0;
-  corpo = consulta[0] ? rede_baixar(consulta, 15) : NULL;
+    // SAMSUNG (#136): o navegador nao deixa por o Referer e a API nao manda
+    // CORS a um wgt — a mesma consulta vai pelo servico de recomendacoes, que
+    // devolve a resposta crua. Sem ele na build nao ha por onde (e
+    // trailerfonte_imdb_tizen ja tirou o IMDb da ordem).
+    (void)cabs;
+    if (NV_REC_URL[0]) snprintf(consulta, sizeof consulta, "%s/v1/trailer/imdb?id=%s", NV_REC_URL, imdb);
+    else consulta[0] = 0;
+    corpo = consulta[0] ? rede_baixar(consulta, 15) : NULL;
 #else
-  corpo = rede_baixar_com(consulta, 15, cabs);
+    corpo = rede_baixar_com(consulta, 15, cabs);
 #endif
+  }
   memset(&lida, 0, sizeof lida);
   snprintf(lida.nome, sizeof lida.nome, "Trailer");
   { int alt = corpo ? escolher(corpo, &lida) : 0;
-    printf("[trailer] imdb %s: %s%dp (%d definicoes)\n", imdb,
+    printf("[trailer] imdb %s (%s): %s%dp (%d definicoes)\n", chave, imdb[0] ? imdb : "-",
            !corpo ? "sem resposta " : alt ? "MP4 ate " : "sem trailer ", alt, lida.n);
     fflush(stdout); }
   trancar();
-  e = reservar(imdb);
+  e = reservar(chave);
   e->emVoo = 0; e->respondeu = 1;
+  if (emVooTotal > 0) emVooTotal--;
   e->n = lida.n;
   memcpy(e->alt, lida.alt, sizeof e->alt);
   memcpy(e->url, lida.url, sizeof e->url);
@@ -192,29 +230,42 @@ static void *buscar(void *arg) {
   return NULL;
 }
 
-void trailerimdb_pedir(const char *imdb) {
+void trailerimdb_pedir_tipo(const char *imdb, int serie) {
   Entrada *e;
   pthread_t f;
-  char *arg;
-  if (!imdb || strncmp(imdb, "tt", 2)) return;
+  PedidoImdb *ped;
+  char chave[32];
+  if (!imdb || (strncmp(imdb, "tt", 2) && strncmp(imdb, "tmdb:", 5))) return;
+  idbase_copiar(imdb, chave, sizeof chave);
+  if (!chave[0]) return;
   trancar();
-  e = reservar(imdb);
+  e = reservar(chave);
   if (!e->respondeu && !e->emVoo && lerDisco(e)) e->respondeu = 1;
   if (e->emVoo || valido(e)) { destrancar(); return; }
+  if (emVooTotal >= TR_MAX_CONCORRENTES) { destrancar(); return; }
   e->emVoo = 1; e->respondeu = 0;
+  emVooTotal++;
   destrancar();
-  arg = strdup(imdb);
-  if (!arg) return;
-  if (pthread_create(&f, NULL, buscar, arg) == 0) pthread_detach(f);
-  else { free(arg); trancar(); e->emVoo = 0; destrancar(); }
+  ped = calloc(1, sizeof *ped);
+  if (!ped) { trancar(); e->emVoo = 0; if (emVooTotal > 0) emVooTotal--; destrancar(); return; }
+  snprintf(ped->chave, sizeof ped->chave, "%s", chave);
+  ped->serie = serie ? 1 : 0;
+  if (pthread_create(&f, NULL, buscar, ped) == 0) pthread_detach(f);
+  else { free(ped); trancar(); e->emVoo = 0; if (emVooTotal > 0) emVooTotal--; destrancar(); }
+}
+
+void trailerimdb_pedir(const char *imdb) {
+  trailerimdb_pedir_tipo(imdb, 0);
 }
 
 const char *trailerimdb_url(const char *imdb, const char **nome) {
   Entrada *e;
   const char *r = NULL;
+  char chave[32];
   if (!imdb || !imdb[0]) return NULL;
+  idbase_copiar(imdb, chave, sizeof chave);
   trancar();
-  e = achar(imdb);
+  e = achar(chave);
   if (e && valido(e) && e->n) {
     // O teto dos Ajustes: a maior definicao que nao passa dele; sem nenhuma
     // abaixo do teto, a menor que ha. Automatico: ver ptv_trailer_indice.
@@ -236,9 +287,11 @@ const char *trailerimdb_url(const char *imdb, const char **nome) {
 int trailerimdb_respondeu(const char *imdb) {
   Entrada *e;
   int r;
+  char chave[32];
   if (!imdb || !imdb[0]) return 1;
+  idbase_copiar(imdb, chave, sizeof chave);
   trancar();
-  e = achar(imdb);
+  e = achar(chave);
   r = !e || e->respondeu;
   destrancar();
   return r;

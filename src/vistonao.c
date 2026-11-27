@@ -1,4 +1,5 @@
 #include "vistonao.h"
+#include "idbase.h"
 #include "sessao.h"
 #include "perfis.h"
 #include "dados.h"
@@ -23,7 +24,7 @@
 
 typedef struct {
   int   perfil;
-  char  id[16];        // a mesma chave de vistoep.c: o id ate o ':'
+  char  id[24];        // a mesma chave de vistoep.c: id base (preserva tmdb:/kitsu:)
   short temp, ep;
   long long ms;        // quando a pessoa desmarcou
 } Ent;
@@ -43,11 +44,7 @@ static long long agoraMs(void) {
 void vistonao_relogio(long long (*f)(void)) { relogio = f; }
 
 static void idBase(const char *s, char *d, size_t tam) {
-  size_t k = 0;
-  d[0] = 0;
-  if (!s) return;
-  while (s[k] && s[k] != ':' && k + 1 < tam) { d[k] = s[k]; k++; }
-  d[k] = 0;
+  idbase_copiar(s, d, tam);
 }
 
 static void nomeArquivo(char *d, size_t tam) {
@@ -189,7 +186,7 @@ static int registrar(int perfil, const char *id, int t, int e, long long ms) {
 }
 
 void vistonao_gesto(const char *imdb, const VistoPar *pares, int n, int visto) {
-  char id[16];
+  char id[24];
   int i, mudou = 0, perfil = perfis_ativo();
   long long ms = agoraMs();
   idBase(imdb, id, sizeof id);
@@ -227,7 +224,7 @@ void vistonao_gesto(const char *imdb, const VistoPar *pares, int n, int visto) {
 }
 
 int vistonao_barra(const char *imdb, int temporada, int episodio, long long remotoMs) {
-  char id[16];
+  char id[24];
   int k, res = 0, perfil = perfis_ativo();
   idBase(imdb, id, sizeof id);
   if (!id[0] || episodio < 1) return 0;
@@ -255,7 +252,7 @@ int vistonao_barra(const char *imdb, int temporada, int episodio, long long remo
 
 int vistonao_primeira(const char *imdb, int temporada, int episodio, long long remotoMs,
                       int *pt, int *pe) {
-  char id[16];
+  char id[24];
   int i, achou = 0, bt = 0, be = 0, perfil = perfis_ativo();
   idBase(imdb, id, sizeof id);
   if (!id[0] || episodio < 1 || !pt || !pe) return 0;

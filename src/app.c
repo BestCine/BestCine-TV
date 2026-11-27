@@ -3354,6 +3354,7 @@ static void aliviarMemoria(void) {
   tex_aliviar();
   txt_aliviar();
   assrender_aliviar();
+  desc_bc_cache_aliviar();
   memlog_devolver();
 }
 static void abrirFonteManualDireta(const Stream *s) {

@@ -323,8 +323,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
-      NUVIO_P2P_MOTOR: none
-      NUVIO_APK_LITE: "1"
+      NUVIO_P2P_MOTOR: ${{ github.workspace }}/.cache/nuvio-p2p-motor
+      NUVIO_APK_LITE: "0"
+      NUVIO_PULAR_LITE: "1"
       NUVIO_RUST_MKVCORE: "0"
       NUVIO_ANDROID_CACHE: ${{ github.workspace }}/.cache/nuvio-android
     steps:
@@ -338,7 +339,7 @@ jobs:
 
       - name: Instalar pacotes Android SDK/NDK 27 + ferramentas
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg ninja-build cmake
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg ninja-build cmake perl make
           SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKM" --licenses >/dev/null 2>&1 || true
           "$SDKM" --install "ndk;27.2.12479018" "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1"
@@ -348,6 +349,25 @@ jobs:
         with:
           path: ${{ env.NUVIO_ANDROID_CACHE }}
           key: android-deps-${{ hashFiles('tools/android/deps.sh') }}
+
+      - name: Restaurar cache motor P2P nativo Android (nuvio-engine + libtorrent)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.NUVIO_P2P_MOTOR }}/android/lib
+            ${{ env.NUVIO_P2P_MOTOR }}/android/include
+          key: android-p2p-motor-${{ hashFiles('tools/p2p-motor/build-android.sh', 'tools/p2p-motor/pasta.sh', 'tools/p2p-motor/janela-334.patch') }}
+
+      - name: Compilar motor P2P nativo Android (se nao estiver em cache)
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
+          export NV_JOBS="$(nproc)"
+          P2P_DIR="$NUVIO_P2P_MOTOR/android"
+          if [ -s "$P2P_DIR/lib/arm64-v8a/libnuvio_engine.a" ] && [ -s "$P2P_DIR/lib/armeabi-v7a/libnuvio_engine.a" ] && [ -s "$P2P_DIR/include/nuvio_engine/nuvio_engine.h" ]; then
+            echo "Motor P2P Android restaurado do cache."
+          else
+            bash tools/p2p-motor/build-android.sh "$P2P_DIR"
+          fi
 
       - name: Compilar libcurl/libjpeg/libwebp para Android
         run: |
@@ -374,7 +394,7 @@ jobs:
             printf 'SIMKL_APP_NAME=BestCine\n'
           } > local.properties
 
-      - name: Compilar APK universal assinado BestCine TV (arm64 e armv7)
+      - name: Compilar APK universal assinado BestCine TV (arm64 e armv7 com P2P nativo)
         env:
           NUVIO_KEYSTORE_BASE64: ${{ secrets.NUVIO_KEYSTORE_BASE64 }}
           NUVIO_KEYSTORE_PASS: ${{ secrets.NUVIO_KEYSTORE_PASS }}
@@ -385,7 +405,8 @@ jobs:
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
           VER=$(python3 -c 'import json; print(json.load(open("deploy/app/appinfo.json"))["version"])')
           mkdir -p dist-android
-          APK="dist-android/BestCineTV-android-lite-universal.apk"
+          APK="dist-android/BestCineTV-android.apk"
+          APK_COMPAT="dist-android/BestCineTV-android-lite-universal.apk"
 
           if [ -n "$NUVIO_KEYSTORE_BASE64" ] && [ -n "$NUVIO_KEYSTORE_PASS" ] && [ -n "$NUVIO_KEY_ALIAS" ] && [ -n "$NUVIO_KEY_PASS" ]; then
             umask 077
@@ -393,13 +414,18 @@ jobs:
             export NUVIO_KEYSTORE="$RUNNER_TEMP/bestcine-release.jks"
             trap 'rm -f "$RUNNER_TEMP/bestcine-release.jks"' EXIT
             bash tools/android.sh --release-only 2>&1 | tee build-android.log
-            cp "build/android/Nuvio-${VER}-android-lite-universal.apk" "$APK"
+            cp "build/android/Nuvio-${VER}-android.apk" "$APK"
             SIGN_MODE="Release (keystore oficial BestCine)"
           else
             bash tools/android.sh --debug-only 2>&1 | tee build-android.log
-            cp "build/android/Nuvio-${VER}-android-lite-universal-debug.apk" "$APK"
+            cp "build/android/Nuvio-${VER}-android-debug.apk" "$APK"
             SIGN_MODE="Debug (fallback sem keystore)"
           fi
+
+          # Mantem tambem o nome legado BestCineTV-android-lite-universal.apk apontando
+          # para o mesmo APK completo com P2P nativo, preservando o codigo 6617912 do
+          # Downloader, links do site e o auto-update de instalacoes anteriores.
+          cp "$APK" "$APK_COMPAT"
 
           # Confere o arquivo que será publicado, não apenas o APK intermediário.
           actual_abis=$(unzip -Z1 "$APK" | sed -n 's#^lib/\([^/][^/]*\)/.*#\1#p' | sort -u)
@@ -410,9 +436,10 @@ jobs:
           fi
 
           {
-            echo "### Android TV APK"
+            echo "### Android TV APK (com motor P2P nativo)"
             echo "- Assinatura: $SIGN_MODE"
             echo "- ABIs: arm64-v8a e armeabi-v7a"
+            echo "- Motor P2P: nuvio-engine + libtorrent (embutido)"
             echo "- SHA-256: $(sha256sum "$APK" | cut -d' ' -f1)"
           } >> "$GITHUB_STEP_SUMMARY"
           ls -lh dist-android
@@ -459,27 +486,12 @@ jobs:
           [ -n "$TAG" ] || TAG="v${VER}"
           ls -lh release-assets
 
-          printf '%s\n' \
-            "## BestCine TV — Smart TVs (LG webOS, Samsung Tizen e Android TV)" \
-            "" \
-            "Aplicativo nativo em **C / SDL2 / OpenGL ES 2** para Smart TVs (60 FPS), fork GPL-3.0 baseado no excelente **[iqui27/nuvio-native-legacy](https://github.com/iqui27/nuvio-native-legacy)**." \
-            "" \
-            "### Recursos incluidos" \
-            "- **Login por QR Code + codigo de 6 digitos** via \`https://example.invalid/tv\` (sem digitar senha no controle remoto)." \
-            "- **Configuracao automatica** da conta BestCine, plano e catalogos (filmes, series e TV ao Vivo com EPG)." \
-            "- **DNS Proprio Anti-Bloqueio (DoH)** (Cloudflare 1.1.1.1 padrao / Google 8.8.8.8 / Sistema), inclusive em LG webOS antigas (\`libcurl 7.53\`)." \
-            "- **Secao Conta BestCine** em *Ajustes > Conta e servicos*." \
-            "" \
-            "### Como instalar" \
-            "- **LG webOS (Homebrew Channel):** adicione \`https://github.com/BestCine/BestCine-TV/releases/latest/download/repo.json\` ou instale o \`.ipk\` abaixo." \
-            "- **Samsung Tizen (Apps2Samsung):** escolha o \`.tpk\` do ano da sua TV (\`Tpk40\` 2018-2020, \`Tpk60\` 2021, \`Tpk65\` 2022-2023, \`Tpk\` 2024+) ou o \`.wgt\` (Tizen 5.5+)." \
-            "- **Android TV / Google TV:** instale o APK universal, que inclui \`arm64-v8a\` e \`armeabi-v7a\`." \
-            "" \
-            "> **Creditos (GPL-3.0):** Baseado em [iqui27/nuvio-native-legacy](https://github.com/iqui27/nuvio-native-legacy) e [NuvioMedia](https://github.com/Tapframe)." \
-            > release-notes.md
+          test -s RELEASE_NOTES.md
+          cp RELEASE_NOTES.md release-notes.md
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release-assets/* --clobber
+            gh release edit "$TAG" --title "BestCine TV ${TAG}" --notes-file release-notes.md
           else
             gh release create "$TAG" release-assets/* \
               --title "BestCine TV ${TAG}" \

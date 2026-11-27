@@ -6253,7 +6253,8 @@ static void home_trailer_passo_(int topo, float dt, Uint32 agora) {
 #endif
     // O IMDb exige Referer, que navegador nenhum deixa por (e o CORS dele so
     // aceita imdb.com): na Samsung so pelo servico de recomendacoes (#136).
-    if (!trailerfonte_tizen() || trailerfonte_imdb_tizen()) trailerimdb_pedir(ci->imdb);
+    if (!trailerfonte_tizen() || trailerfonte_imdb_tizen())
+      trailerimdb_pedir_tipo(ci->imdb, ci->tipo[0] ? !strcmp(ci->tipo, "series") : 0);
   } else {
     decorrido = agora - heroTrailerDesde;
 #ifdef __EMSCRIPTEN__
@@ -7046,6 +7047,24 @@ static const char *bcGeneroCurtoPt(const char *raw, char *buf, size_t n) {
   return buf;
 }
 
+static void bcFlagsFileira(int r, const char *titFil, int *rankOut, int *cinemaOut) {
+  static int ultR = -1, ultRank = 0, ultCinema = 0;
+  static char ultTit[80] = "";
+  if (r != ultR || strcmp(ultTit, titFil ? titFil : "")) {
+    ultR = r;
+    snprintf(ultTit, sizeof ultTit, "%s", titFil ? titFil : "");
+    ultRank = (
+      bcContemSemCaixa(ultTit, "em alta") || bcContemSemCaixa(ultTit, "popular") ||
+      bcContemSemCaixa(ultTit, "trending") || bcContemSemCaixa(ultTit, "tend") ||
+      bcContemSemCaixa(ultTit, "momento") || bcContemSemCaixa(ultTit, "destaque") ||
+      bcContemSemCaixa(ultTit, "top ")
+    );
+    ultCinema = bcContemSemCaixa(ultTit, "cinema") || bcContemSemCaixa(ultTit, "cartaz");
+  }
+  if (rankOut) *rankOut = ultRank;
+  if (cinemaOut) *cinemaOut = ultCinema;
+}
+
 static void desenhaSelosNativosCard(const CatItem *cItem, int r, int c,
                                     TipoFileira tipo, int deitado, float abre,
                                     float px, float py, float w, float h,
@@ -7063,19 +7082,16 @@ static void desenhaSelosNativosCard(const CatItem *cItem, int r, int c,
 
   // 1. Selo discreto no topo (somente quando nao conflita com selo de assistido)
   if (limiteSelo >= px + w * 0.68f) {
-    int filRank = c >= 0 && c < 20 && (
-      bcContemSemCaixa(titFil, "em alta") || bcContemSemCaixa(titFil, "popular") ||
-      bcContemSemCaixa(titFil, "trending") || bcContemSemCaixa(titFil, "tend") ||
-      bcContemSemCaixa(titFil, "momento") || bcContemSemCaixa(titFil, "destaque") ||
-      bcContemSemCaixa(titFil, "top ")
-    );
+    int filRank = 0, filCinema = 0;
+    bcFlagsFileira(r, titFil, &filRank, &filCinema);
+    filRank = filRank && c >= 0 && c < 20;
     anoItem = atoi(cItem->meta);
     anoAtual = bcAnoAtualCache();
     if (filRank) {
       snprintf(topo, sizeof topo, "#%d Hoje", c + 1);
       ehDestaqueTopo = (c < 3);
     } else if (anoItem >= anoAtual && anoItem <= anoAtual + 1) {
-      if (!ehSerie && (bcContemSemCaixa(titFil, "cinema") || bcContemSemCaixa(titFil, "cartaz"))) {
+      if (!ehSerie && filCinema) {
         snprintf(topo, sizeof topo, "No Cinema");
         ehDestaqueTopo = 1;
       } else {

@@ -1,5 +1,6 @@
 #include "arteurl.h"
 #include "contapend.h"
+#include "idbase.h"
 #include "contacache.h"
 #define NV_DUBLE_SESSAO
 #include "perfisessao.h"
@@ -78,11 +79,7 @@ static int ok2xx(const char *r, int st) { return r && st >= 200 && st < 300; }
 // vistoep.c). Lista: so o sufixo ":<temp>:<ep>" em digitos sai — "tmdb:55" e
 // um id inteiro (a regra de salvos_id_titulo).
 static void idVisto(const char *s, char *d, size_t tam) {
-  size_t k = 0;
-  d[0] = 0;
-  if (!s) return;
-  while (s[k] && s[k] != ':' && k + 1 < tam) { d[k] = s[k]; k++; }
-  d[k] = 0;
+  idbase_copiar(s, d, tam);
 }
 static void idLista(const char *s, char *d, size_t tam) {
   const char *a, *b;

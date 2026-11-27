@@ -16,6 +16,7 @@
 #include "js.h"
 #include "dados.h"
 #include "ajustes.h"
+#include "idiomacod.h"
 #include <SDL2/SDL.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -27,7 +28,7 @@
 
 #define TA_MAX 32
 typedef struct {
-  char imdb[16];
+  char imdb[32];
   char url[1024];       // master da Apple (ABR completo)
   char toca[600];       // LG: file:// do master reduzido a UMA variante; Samsung: URL da playlist de midia dela (varianteMidia); ou vazio
   int  tocaQual;        // teto de qualidade com que `toca` foi montado
@@ -35,11 +36,13 @@ typedef struct {
   int  emVoo, respondeu;
 } Entrada;
 static Entrada tab[TA_MAX];
-static int nTab, prox;
+static int nTab, prox, emVooTotal;
 static SDL_mutex *mtx;
+#define TA_MAX_CONCORRENTES 2
 
 #define UTS_HOST "https://tv.apple.com/api/uts/v3"
 #define UTS_QUERY "caller=web&sf=143441&v=76&pfm=appletv&locale=en-US&l=en&utsk=6e3013c6d6fae3c2::::::235656c069bb0efb"
+#define UTS_QUERY_BR "caller=web&sf=143503&v=76&pfm=appletv&locale=pt-BR&l=pt&utsk=6e3013c6d6fae3c2::::::235656c069bb0efb"
 static const char *const CABS[] = { "Accept: application/json", "Origin: https://tv.apple.com", NULL };
 
 static void trancar(void)   { if (!mtx) mtx = SDL_CreateMutex(); SDL_LockMutex(mtx); }
@@ -60,12 +63,19 @@ static Entrada *reservar(const char *imdb) {
   return e;
 }
 
+static void limparChaveArq(const char *imdb, char *dst, size_t cap) {
+  size_t i;
+  snprintf(dst, cap, "%s", imdb ? imdb : "");
+  for (i = 0; dst[i]; i++) if (dst[i] == ':' || dst[i] == '/') dst[i] = '_';
+}
+
 static void caminhoDisco(const char *imdb, char *dst, unsigned tam) {
-  char pasta[512];
+  char pasta[512], limpo[32];
   dst[0] = 0;
   if (!dados_caminho(pasta, sizeof pasta, "trailer")) return;
   mkdir(pasta, 0755);
-  snprintf(dst, tam, "%s/%s-apple", pasta, imdb);
+  limparChaveArq(imdb, limpo, sizeof limpo);
+  snprintf(dst, tam, "%s/%s-apple", pasta, limpo);
 }
 static int lerDisco(Entrada *e) {
   char c[600], linha[1200];
@@ -98,10 +108,11 @@ static void gravarDisco(const Entrada *e) {
 static int valido(const Entrada *e) { return e->respondeu && e->expira > (long)time(NULL); }
 
 static void caminhoMaster(const char *imdb, char *dst, unsigned tam, const char *sufixo) {
-  char pasta[512];
+  char pasta[512], limpo[32];
   dst[0] = 0;
   if (!dados_caminho(pasta, sizeof pasta, "trailer")) return;
-  snprintf(dst, tam, "%s/%s-apple%s", pasta, imdb, sufixo);
+  limparChaveArq(imdb, limpo, sizeof limpo);
+  snprintf(dst, tam, "%s/%s-apple%s", pasta, limpo, sufixo);
 }
 
 // UMA VARIANTE, NAO O ABR. Medido na C9 (20/09/2026): entregue o master
@@ -417,21 +428,32 @@ static int buscarId(const char *titulo, int ano, int serie, char *id, unsigned t
   char norm[256], enc[768], url[1100];
   char *corpo;
   int r;
+  int ptPrimeiro = (ajustes_idioma() == IDIOMA_PT);
+  const char *q1 = ptPrimeiro ? UTS_QUERY_BR : UTS_QUERY;
+  const char *q2 = ptPrimeiro ? UTS_QUERY : UTS_QUERY_BR;
   normalizar(titulo, norm, sizeof norm);
   if (!norm[0]) return 0;
   urlEncode(titulo, enc, sizeof enc);
-  snprintf(url, sizeof url, UTS_HOST "/search?" UTS_QUERY "&searchTerm=%s", enc);
+  snprintf(url, sizeof url, UTS_HOST "/search?%s&searchTerm=%s", q1, enc);
   corpo = rede_baixar_com(url, 12, CABS);
   if (!corpo) return -1;
   r = escolherNaBusca(corpo, titulo, ano, serie, id, tam, arte, tamArte);
   free(corpo);
+  if (r == 0) {
+    snprintf(url, sizeof url, UTS_HOST "/search?%s&searchTerm=%s", q2, enc);
+    corpo = rede_baixar_com(url, 12, CABS);
+    if (corpo) {
+      r = escolherNaBusca(corpo, titulo, ano, serie, id, tam, arte, tamArte);
+      free(corpo);
+    }
+  }
   return r;
 }
 
 // ARTE POR IMDb + ano + tipo, inclusive a semeada pelo trailer: uma busca
 // com tipo corrigido nao pode contaminar pedidos de arte do tipo original.
 #define TA_ARTE_MAX 64
-typedef struct { char imdb[16]; char modelo[600]; int sabida, ano, serie; } ArteApple;
+typedef struct { char imdb[32]; char modelo[600]; int sabida, ano, serie; } ArteApple;
 static ArteApple tabArte[TA_ARTE_MAX];
 static int proxArte;
 // Trava PROPRIA e estatica: trailerapple_arte roda nos fios de rede do
@@ -497,7 +519,7 @@ static int hlsDe(const char *id, int serie, char *url, unsigned tam) {
   return ok;
 }
 
-typedef struct { char imdb[16], titulo[200], meta[96]; int serie; } Pedido;
+typedef struct { char imdb[32], titulo[200], meta[96]; int serie; } Pedido;
 
 static void *buscar(void *arg) {
   Pedido *p = arg;
@@ -545,6 +567,7 @@ static void *buscar(void *arg) {
   trancar();
   e = reservar(p->imdb);
   e->emVoo = 0; e->respondeu = 1;
+  if (emVooTotal > 0) emVooTotal--;
   snprintf(e->url, sizeof e->url, "%s", url);
   e->toca[0] = 0; e->tocaQual = -1;
 #ifdef NV_TRAILER_SAMSUNG
@@ -583,16 +606,18 @@ void trailerapple_pedir(const char *imdb, const char *titulo, const char *meta, 
 #endif
   }
   if (e->emVoo || valido(e)) { destrancar(); return; }
+  if (emVooTotal >= TA_MAX_CONCORRENTES) { destrancar(); return; }
   e->emVoo = 1; e->respondeu = 0;
+  emVooTotal++;
   destrancar();
   p = calloc(1, sizeof *p);
-  if (!p) return;
+  if (!p) { trancar(); e->emVoo = 0; if (emVooTotal > 0) emVooTotal--; destrancar(); return; }
   snprintf(p->imdb, sizeof p->imdb, "%s", imdb);
   snprintf(p->titulo, sizeof p->titulo, "%s", titulo);
   snprintf(p->meta, sizeof p->meta, "%s", meta ? meta : "");
   p->serie = serie;
   if (pthread_create(&f, NULL, buscar, p) == 0) pthread_detach(f);
-  else { free(p); trancar(); e->emVoo = 0; destrancar(); }
+  else { free(p); trancar(); e->emVoo = 0; if (emVooTotal > 0) emVooTotal--; destrancar(); }
 }
 
 const char *trailerapple_url(const char *imdb) {
