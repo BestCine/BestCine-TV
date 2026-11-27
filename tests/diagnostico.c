@@ -19,6 +19,8 @@ static void tabela(void) {
   PtvPerfil p;
   // LG, os degraus que ja estavam em tex_cache.c (ver perfiltv.c).
   assert(ptv_tex_auto_mb(PTV_LG, 0) == 96);
+  assert(ptv_tex_auto_mb(PTV_LG, 512) == 24);    // LG entrada <= 600 MB (ex: 43LM6300PSB)
+  assert(ptv_tex_teto_mb(PTV_LG, 512) == 32);
   assert(ptv_tex_auto_mb(PTV_LG, 624) == 48);
   assert(ptv_tex_auto_mb(PTV_LG, 1024) == 48);
   assert(ptv_tex_auto_mb(PTV_LG, 964) == 48);    // registros 1720-1774
@@ -33,6 +35,8 @@ static void tabela(void) {
   assert(ptv_tex_teto_mb(PTV_LG, 4096) == 512);
   ptv_padrao(PTV_LG, 2245, &p);
   assert(p.texMb == 128 && p.fiosRede == 4 && p.heroiLarg == 1920);
+  ptv_padrao(PTV_LG, 512, &p);
+  assert(p.texMb == 24 && p.fiosRede == 1 && p.heroiLarg == 960);
   ptv_padrao(PTV_LG, 1024, &p);
   assert(p.texMb == 48 && p.fiosRede == 2 && p.heroiLarg == 1280);
   // Tizen: deviceMemory; o teto e o proprio automatico.
@@ -106,10 +110,11 @@ static void limites(void) {
       for (i = 0; i < N_RAMS; i++) {
         PtvPerfil c;
         long m = RAMS[i];
+        int heroiMinEsperado = (plat == PTV_LG && m > 0 && m <= 600) ? 960 : 1280;
         ptv_candidato((PtvPlataforma)plat, m, (PtvModo)modo, 0, &c);
         assert(c.texMb >= 16 && c.texMb <= ptv_tex_teto_mb((PtvPlataforma)plat, m));
         assert(c.fiosRede >= 1 && c.fiosRede <= ptv_fios_rede_max((PtvPlataforma)plat));
-        assert(c.heroiLarg >= 1280 && c.heroiLarg <= ptv_heroi_max((PtvPlataforma)plat, m));
+        assert(c.heroiLarg >= heroiMinEsperado && c.heroiLarg <= ptv_heroi_max((PtvPlataforma)plat, m));
         if (plat == PTV_TIZEN) {
           // A Samsung nunca ganha mais textura que o automatico medido nem os
           // 300 MB do alto-cache, em modo nenhum.
@@ -117,7 +122,9 @@ static void limites(void) {
           assert(c.texMb <= 128);
           if (m < 2000) assert(c.heroiLarg == 1280);
         }
-        if ((plat == PTV_LG || plat == PTV_ANDROID) && m && m < 1200)
+        if (plat == PTV_LG && m > 0 && m <= 600)
+          assert(c.texMb <= 32 && c.heroiLarg == 960 && c.fiosRede == 1);
+        else if ((plat == PTV_LG || plat == PTV_ANDROID) && m && m < 1200)
           assert(c.texMb <= 64 && c.heroiLarg == 1280 && c.fiosRede <= 2);
       }
   { PtvPerfil c;

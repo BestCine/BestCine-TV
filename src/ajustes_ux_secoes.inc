@@ -188,6 +188,7 @@ static int ajCenaSecao(int op) {
     case AJ_BC_STR_PARAMOUNT: case AJ_BC_STR_CRUNCHYROLL:
     case AJ_BC_SAZONAL: case AJ_BC_TEMPO_ATIVO:
     case AJ_BC_TEMPO_RAPIDOS: case AJ_BC_TEMPO_MINI: case AJ_BC_TEMPO_EPICOS:
+    case AJ_BC_LANCAMENTOS: case AJ_BC_SELOS_NATIVOS:
       return AJC_HOME_FILEIRAS;
     case AJ_TITULO_FIL: case AJ_PALCO_FUNDO:
       return AJC_APA_FILEIRAS;

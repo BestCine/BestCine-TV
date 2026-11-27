@@ -249,8 +249,9 @@ static void aj2MenuValor(int sec, char *b, size_t n) {
       else snprintf(b, n, "%s", i18n("Não configurado"));
       return; }
     case AJS_BC_CATALOGOS: {
-      int ativos = (lig(AJ_BC_MOMENTO) ? 1 : 0) + (lig(AJ_BC_SAZONAL) ? 1 : 0)
-                 + (lig(AJ_BC_TEMPO_ATIVO) ? 1 : 0) + (lig(AJ_BC_STR_ATIVO) ? 1 : 0);
+      int ativos = (lig(AJ_BC_LANCAMENTOS) ? 1 : 0) + (lig(AJ_BC_MOMENTO) ? 1 : 0)
+                 + (lig(AJ_BC_SAZONAL) ? 1 : 0) + (lig(AJ_BC_TEMPO_ATIVO) ? 1 : 0)
+                 + (lig(AJ_BC_STR_ATIVO) ? 1 : 0);
       snprintf(b, n, "Exclusivo BestCine · %d %s", ativos, ativos == 1 ? "ativo" : "ativos");
       return; }
     case AJS_CONTAS: {   // "Henrique · Trakt"

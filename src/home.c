@@ -71,6 +71,8 @@ static void heroTempoInicio(int indice) {
 #include "dados.h"
 #include "tendencia.h"
 #include <strings.h>
+#include <ctype.h>
+#include <time.h>
 // Os veus da base de cada forma de card (gfx_veu_base): a fracao da altura que
 // o degrade cobre e o alfa na base. Nomeados porque o laco da fileira os poe
 // DENTRO da arte (veusDoCard) e quem desenha a legenda tem de pedir o mesmo.
@@ -6974,10 +6976,174 @@ static int veuRotulo(const CatItem *cItem, TipoFileira tipo, int deitado, float 
 // arte e escurecida inteira e so depois a borda recorta. As condicoes sao as
 // de quem desenha cada legenda; gfx_veu_base pula so o veu que estiver aqui.
 // `comCw`: o card leva o conteudo de continuar_desenhar (so o laco da home).
+static int bcSelosNativosCardAtivos(const CatItem *cItem, TipoFileira tipo, int deitado, float abre) {
+  if (!cItem || deitado || abre > 0.05f) return 0;
+  if (tipo != FILEIRA_NORMAL && tipo != FILEIRA_POSTER) return 0;
+  if (!ajustes_bc_selos_nativos() || posterprov_ativo()) return 0;
+  return 1;
+}
+
+static int bcContemSemCaixa(const char *hay, const char *needle) {
+  size_t nl;
+  if (!hay || !needle || !needle[0]) return 0;
+  nl = strlen(needle);
+  for (; *hay; hay++) {
+    size_t i = 0;
+    while (i < nl && hay[i] &&
+           tolower((unsigned char)hay[i]) == tolower((unsigned char)needle[i])) i++;
+    if (i == nl) return 1;
+  }
+  return 0;
+}
+
+static int bcAnoAtualCache(void) {
+  static int anoCache = 0;
+  if (!anoCache) {
+    time_t agora = time(NULL);
+    struct tm tmLocal;
+#ifdef _WIN32
+    localtime_s(&tmLocal, &agora);
+#else
+    localtime_r(&agora, &tmLocal);
+#endif
+    anoCache = tmLocal.tm_year + 1900;
+    if (anoCache < 2020) anoCache = 2026;
+  }
+  return anoCache;
+}
+
+static const char *bcGeneroCurtoPt(const char *raw, char *buf, size_t n) {
+  const char *sep;
+  size_t len;
+  if (!raw || !raw[0] || !buf || n < 2) return NULL;
+  sep = strstr(raw, " \xc2\xb7 ");
+  if (!sep) sep = strchr(raw, ',');
+  len = sep ? (size_t)(sep - raw) : strlen(raw);
+  while (len > 0 && raw[len - 1] == ' ') len--;
+  if (!len) return NULL;
+  if (len >= n) len = n - 1;
+  memcpy(buf, raw, len);
+  buf[len] = 0;
+  if (!strcasecmp(buf, "Filme") || !strcasecmp(buf, "Série") ||
+      !strcasecmp(buf, "Serie") || !strcasecmp(buf, "Programa de TV") ||
+      !strcasecmp(buf, "Movie") || !strcasecmp(buf, "Series")) return NULL;
+  if (!strcasecmp(buf, "Action")) return "Ação";
+  if (!strcasecmp(buf, "Adventure")) return "Aventura";
+  if (!strcasecmp(buf, "Animation")) return "Animação";
+  if (!strcasecmp(buf, "Comedy")) return "Comédia";
+  if (!strcasecmp(buf, "Documentary")) return "Documentário";
+  if (!strcasecmp(buf, "Family")) return "Família";
+  if (!strcasecmp(buf, "Fantasy")) return "Fantasia";
+  if (!strcasecmp(buf, "History")) return "História";
+  if (!strcasecmp(buf, "Horror")) return "Terror";
+  if (!strcasecmp(buf, "Music")) return "Música";
+  if (!strcasecmp(buf, "Mystery")) return "Mistério";
+  if (!strcasecmp(buf, "Science Fiction") || !strcasecmp(buf, "Ficção científica") ||
+      !strcasecmp(buf, "Sci-Fi & Fantasy")) return "Sci-Fi";
+  if (!strcasecmp(buf, "Thriller")) return "Suspense";
+  if (!strcasecmp(buf, "War") || !strcasecmp(buf, "War & Politics")) return "Guerra";
+  if (!strcasecmp(buf, "Western")) return "Faroeste";
+  return buf;
+}
+
+static void desenhaSelosNativosCard(const CatItem *cItem, int r, int c,
+                                    TipoFileira tipo, int deitado, float abre,
+                                    float px, float py, float w, float h,
+                                    float limiteSelo, float a) {
+  char topo[32] = "", genBuf[40], genOut[48] = "", notaTxt[16] = "";
+  const char *gen = NULL;
+  const char *titFil = (r >= 0 && r < MAX_FIL) ? fileiras[r].titulo : "";
+  int nota, anoItem, anoAtual, ehSerie, ehDestaqueTopo = 0;
+  if (a <= 0.01f || w < 110.0f || h < 140.0f) return;
+  if (!bcSelosNativosCardAtivos(cItem, tipo, deitado, abre)) return;
+
+  ehSerie = !strcmp(cItem->tipo, "series") || !strcmp(cItem->tipo, "tv");
+  nota = imdbnota_obter(cItem->imdb, cItem->nota, ehSerie);
+  gen = bcGeneroCurtoPt(cItem->genero, genBuf, sizeof genBuf);
+
+  // 1. Selo discreto no topo (somente quando nao conflita com selo de assistido)
+  if (limiteSelo >= px + w * 0.68f) {
+    int filRank = c >= 0 && c < 20 && (
+      bcContemSemCaixa(titFil, "em alta") || bcContemSemCaixa(titFil, "popular") ||
+      bcContemSemCaixa(titFil, "trending") || bcContemSemCaixa(titFil, "tend") ||
+      bcContemSemCaixa(titFil, "momento") || bcContemSemCaixa(titFil, "destaque") ||
+      bcContemSemCaixa(titFil, "top ")
+    );
+    anoItem = atoi(cItem->meta);
+    anoAtual = bcAnoAtualCache();
+    if (filRank) {
+      snprintf(topo, sizeof topo, "#%d Hoje", c + 1);
+      ehDestaqueTopo = (c < 3);
+    } else if (anoItem >= anoAtual && anoItem <= anoAtual + 1) {
+      if (!ehSerie && (bcContemSemCaixa(titFil, "cinema") || bcContemSemCaixa(titFil, "cartaz"))) {
+        snprintf(topo, sizeof topo, "No Cinema");
+        ehDestaqueTopo = 1;
+      } else {
+        snprintf(topo, sizeof topo, "%s", ehSerie ? "Nova Série" : "Novo Filme");
+      }
+    }
+    if (topo[0]) {
+      float maxTw = w * 0.68f;
+      TxtLinha tt = txt_linha_corta(
+        TXT_MINI, topo,
+        ehDestaqueTopo ? 12 : 242, ehDestaqueTopo ? 18 : 246, ehDestaqueTopo ? 32 : 252,
+        255, maxTw);
+      float pw = tt.w + 18.0f;
+      float ph = tt.h + 7.0f;
+      float bx = px + (w - pw) * 0.5f;
+      float by = py + 6.0f;
+      if (ehDestaqueTopo)
+        gfx_cor((GfxRect){ bx, by, pw, ph }, 0.32f, 0.93f, 0.96f, 1.0f, 0.90f * a);
+      else
+        gfx_cor((GfxRect){ bx, by, pw, ph }, 0.32f, 0.06f, 0.09f, 0.16f, 0.84f * a);
+      txt_desenhar_alpha(tt, bx + (pw - tt.w) * 0.5f, by + (ph - tt.h) * 0.5f, a);
+    }
+  }
+
+  // 2. Faixa inferior sutil: "Genero • ★ 8.8" (sobre o veu ja desenhado no shader da capa)
+  if (nota > 0 && nota <= 100)
+    snprintf(notaTxt, sizeof notaTxt, "%d.%d", nota / 10, nota % 10);
+  if (gen && gen[0] && notaTxt[0]) {
+    snprintf(genOut, sizeof genOut, "%s · ", gen);
+    TxtLinha tStar = txt_linha(TXT_MINI, "★ ", 255, 202, 40, 255);
+    TxtLinha tNota = txt_linha(TXT_MINI, notaTxt, 255, 255, 255, 255);
+    float maxGen = w - 16.0f - tStar.w - tNota.w;
+    if (maxGen > 24.0f) {
+      TxtLinha tGen = txt_linha_corta(TXT_MINI, genOut, 226, 232, 240, 255, maxGen);
+      float totW = tGen.w + tStar.w + tNota.w;
+      float sx = px + (w - totW) * 0.5f;
+      float sy = py + h - 8.0f - tNota.h;
+      txt_desenhar_alpha(tGen, sx, sy, 0.95f * a);
+      txt_desenhar_alpha(tStar, sx + tGen.w, sy, a);
+      txt_desenhar_alpha(tNota, sx + tGen.w + tStar.w, sy, a);
+    } else {
+      float totW = tStar.w + tNota.w;
+      float sx = px + (w - totW) * 0.5f;
+      float sy = py + h - 8.0f - tNota.h;
+      txt_desenhar_alpha(tStar, sx, sy, a);
+      txt_desenhar_alpha(tNota, sx + tStar.w, sy, a);
+    }
+  } else if (notaTxt[0]) {
+    TxtLinha tStar = txt_linha(TXT_MINI, "★ ", 255, 202, 40, 255);
+    TxtLinha tNota = txt_linha(TXT_MINI, notaTxt, 255, 255, 255, 255);
+    float totW = tStar.w + tNota.w;
+    float sx = px + (w - totW) * 0.5f;
+    float sy = py + h - 8.0f - tNota.h;
+    txt_desenhar_alpha(tStar, sx, sy, a);
+    txt_desenhar_alpha(tNota, sx + tStar.w, sy, a);
+  } else if (gen && gen[0]) {
+    TxtLinha tGen = txt_linha_corta(TXT_MINI, gen, 226, 232, 240, 255, w - 16.0f);
+    txt_desenhar_alpha(tGen, px + (w - tGen.w) * 0.5f, py + h - 8.0f - tGen.h, 0.92f * a);
+  }
+}
+
 static void veusDoCard(const CatItem *cItem, TipoFileira tipo, int deitado, float abre,
                        int comCw) {
   float fVeu;
   if (veuRotulo(cItem, tipo, deitado, &fVeu)) gfx_veu_card_por(fVeu, NV_ROTULO_VEU_A);
+  if (comCw && bcSelosNativosCardAtivos(cItem, tipo, deitado, abre) &&
+      (cItem->nota > 0 || cItem->genero[0]))
+    gfx_veu_card_por(0.28f, 0.88f);
   if (comCw && (tipo == FILEIRA_CONTINUE || tipo == FILEIRA_RETORNO) && cItem)
     gfx_veu_card_por(NV_CW_VEU_F, NV_CW_VEU_A);
   if (abre > 0.01f && cItem) gfx_veu_card_por(NV_ABERTA_VEU_F, NV_ABERTA_VEU_A * abre);
@@ -7585,8 +7751,10 @@ static void pintarCartao(const CartaoFoco *k, float raio) {
               ajustes_selo_visto() && cat_visto(cItem)) {
             limiteSelo = badges_selo_visto(px, py, w, 1.0f);
           }
-          if (cItem && tipo != FILEIRA_CONTINUE && tipo != FILEIRA_RETORNO)
+          if (cItem && tipo != FILEIRA_CONTINUE && tipo != FILEIRA_RETORNO) {
             desenhaChipAmigos(cItem, px, py, w, limiteSelo, aArte);
+            desenhaSelosNativosCard(cItem, r, c, tipo, deitado, abre, px, py, w, h, limiteSelo, aArte);
+          }
 
           // --- posterLabelsEnabled ---------------------------------------
           // Card DEITADO: a legenda vai DENTRO da moldura, sobre um degrade que

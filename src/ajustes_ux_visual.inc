@@ -26,6 +26,7 @@ static const char *ajVisualIcone(int op) {
     case AJ_NOME_ADDON: return "aj_rows-3";
     case AJ_SUFIXO_TIPO: return "aj_rows-3";
     case AJ_SELO_VISTO: return "aj_rows-3";
+    case AJ_BC_SELOS_NATIVOS: return "aj_rows-3";
     case AJ_OCULTAR_FILMES_VISTOS: return "aj_rows-3";
     case AJ_BIB_HOME: return "aj_rows-3";
     case AJ_CURADORIA_URL: return "aj_rows-3";
@@ -262,7 +263,7 @@ static const char *ajVisualIcone(int op) {
     case AJ_PERFIL_ATIVO: return "aj_user-round";
     case AJ_BC_CONTA: return "aj_user-round";
     case AJ_BC_DNS: return "aj_shield-check";
-    case AJ_BC_MOMENTO: case AJ_BC_SAZONAL: return "aj_sparkles";
+    case AJ_BC_LANCAMENTOS: case AJ_BC_MOMENTO: case AJ_BC_SAZONAL: return "aj_sparkles";
     case AJ_BC_TEMPO_ATIVO: case AJ_BC_TEMPO_RAPIDOS: case AJ_BC_TEMPO_MINI: case AJ_BC_TEMPO_EPICOS: return "aj_clock";
     case AJ_BC_STR_ATIVO: case AJ_BC_STR_TIPO:
     case AJ_BC_STR_NETFLIX: case AJ_BC_STR_PRIME: case AJ_BC_STR_DISNEY:

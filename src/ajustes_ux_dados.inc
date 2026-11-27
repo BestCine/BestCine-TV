@@ -279,7 +279,8 @@ static const char *uxSinonimos(int op) {
     case AJ_HERO_ANO: return "ano destaque hero lancamento year data esconder mostrar";
     case AJ_HERO_PASTA_DETALHES: return "pasta colecao detalhes destaque hero folder collection details title";
     case AJ_BC_CONTA: return "bestcine conta plano assinatura vitalicio renovar atualizar catalogos usuario email";
-    case AJ_BC_MOMENTO: case AJ_BC_SAZONAL: case AJ_BC_TEMPO_ATIVO:
+    case AJ_BC_SELOS_NATIVOS: return "selos nativos posteres capas nota genero hoje lancamento badges";
+    case AJ_BC_LANCAMENTOS: case AJ_BC_MOMENTO: case AJ_BC_SAZONAL: case AJ_BC_TEMPO_ATIVO:
     case AJ_BC_TEMPO_RAPIDOS: case AJ_BC_TEMPO_MINI: case AJ_BC_TEMPO_EPICOS:
     case AJ_BC_STR_ATIVO: case AJ_BC_STR_TIPO:
     case AJ_BC_STR_NETFLIX: case AJ_BC_STR_PRIME: case AJ_BC_STR_DISNEY:

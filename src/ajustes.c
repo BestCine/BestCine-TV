@@ -743,6 +743,8 @@ typedef enum {
   AJ_BC_TEMPO_RAPIDOS,
   AJ_BC_TEMPO_MINI,
   AJ_BC_TEMPO_EPICOS,
+  AJ_BC_LANCAMENTOS,      // BestCine TV: Filmes & Series Lancamentos (TMDB), ligado por padrao
+  AJ_BC_SELOS_NATIVOS,    // BestCine TV: Selos nativos nos posteres 2:3, ligado por padrao
   AJ_N
 } OpcaoId;
 static const char *V_BC_DNS[] = { "Cloudflare (1.1.1.1)", "Google (8.8.8.8)", "DNS do sistema" };
@@ -1901,6 +1903,8 @@ static const Opcao OPCOES[AJ_N] = {
   ESC("Filmes Rápidos (até 90 min)", V_LIGA, 2),
   ESC("Séries Curtas & Minisséries", V_LIGA, 2),
   ESC("Épicos & Maratonas (+2h30)", V_LIGA, 2),
+  ESC("Filmes & Séries • Lançamentos", V_LIGA, 2),
+  ESC("Selos nativos nos pôsteres", V_LIGA, 2),
 };
 
 // Nome de cada opcao no arquivo. O formato era POSICIONAL — uma linha por
@@ -2252,6 +2256,8 @@ static const char *CHAVE[] = {
   "bestcineTempoRapidosLocal",
   "bestcineTempoMiniLocal",
   "bestcineTempoEpicosLocal",
+  "bestcineLancamentosLocal",
+  "bestcineSelosNativosLocal",
 };
 // QUATRO VETORES PARALELOS indexados pelo mesmo enum AJ_*: OPCOES, CHAVE,
 // valor e as secoes. OPCOES ja e declarado [AJ_N], e `valor` aceita inicializacao
@@ -3650,6 +3656,8 @@ int ajustes_hero_ano(void)     { return lig(AJ_HERO_ANO); }
 int ajustes_hero_duracao(void) { return lig(AJ_HERO_DURACAO); }
 int ajustes_hero_pasta_detalhes(void) { return lig(AJ_HERO_PASTA_DETALHES); }
 int ajustes_bc_dns(void) { int v = valor[AJ_BC_DNS]; return (v >= 0 && v <= 2) ? v : 0; }
+int ajustes_bc_lancamentos(void) { return lig(AJ_BC_LANCAMENTOS); }
+int ajustes_bc_selos_nativos(void) { return lig(AJ_BC_SELOS_NATIVOS); }
 int ajustes_bc_momento(void) { return lig(AJ_BC_MOMENTO); }
 int ajustes_bc_sazonal(void) { return lig(AJ_BC_SAZONAL); }
 int ajustes_bc_tempo_ativo(void) { return lig(AJ_BC_TEMPO_ATIVO); }
@@ -6107,6 +6115,7 @@ static int somenteDesteAparelho(int op) {
     case AJ_BC_STR_PARAMOUNT: case AJ_BC_STR_CRUNCHYROLL:
     case AJ_BC_SAZONAL: case AJ_BC_TEMPO_ATIVO:
     case AJ_BC_TEMPO_RAPIDOS: case AJ_BC_TEMPO_MINI: case AJ_BC_TEMPO_EPICOS:
+    case AJ_BC_LANCAMENTOS: case AJ_BC_SELOS_NATIVOS:
     case AJ_HERO_ARTE_DIF:
     case AJ_HERO_GENERO:
     case AJ_HERO_SINOPSE: case AJ_HERO_NOTAS: case AJ_HERO_ANO: case AJ_HERO_DURACAO: /* o web nao tem */
@@ -8208,9 +8217,11 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_BC_TEMPO_RAPIDOS: return "Filmes bem avaliados com até 90 minutos, ideais para quando você tem pouco tempo.";
     case AJ_BC_TEMPO_MINI: return "Minisséries e séries curtas bem avaliadas no TMDB para maratonar rápido.";
     case AJ_BC_TEMPO_EPICOS: return "Grandes produções e épicos com mais de 2 horas e meia de duração.";
+    case AJ_BC_LANCAMENTOS: return "Exibe fileiras dedicadas com os filmes e séries mais recentes no Brasil via TMDB (com cache em memória de 6 horas).";
+    case AJ_BC_SELOS_NATIVOS: return "Mostra selos leves direto nas capas (ranking, lançamento, gênero e nota) sem baixar imagens extras. Oculta automaticamente se usar provedor externo de pôster.";
     case AJ_SYNC: return "Estado da última sincronização com o BestCine. Pressione OK para atualizar os catálogos agora.";
     case AJ_ADDONS: return "Abre a lista de addons da sua conta, para ligar e desligar cada um nesta TV.";
-    case AJ_PLUGINS: return "Scrapers em JavaScript dos repositórios de plugins do Nuvio, como mais uma fonte na lista, ao lado dos add-ons. Os repositórios vêm da sua conta. Desligado por padrão.";
+    case AJ_PLUGINS: return "Extensões em JavaScript dos repositórios de plugins, como mais uma fonte na lista, ao lado dos add-ons. Os repositórios vêm da sua conta. Desligado por padrão.";
     case AJ_TRAKT: return "Conecta a sua conta do Trakt para marcar o que assistiu e usar a sua lista.";
     case AJ_SIMKL: return "Conecta a sua conta do Simkl, uma alternativa ao Trakt para acompanhar séries.";
     case AJ_DISCORD: return "Mostra no seu perfil do Discord o que você está assistindo, com o cartaz e o tempo. Só sai alguma coisa enquanto um vídeo toca neste perfil.";
@@ -9800,7 +9811,7 @@ static int definirValorDireto(int op, int novo) {
   if (op == AJ_TEX_MB) tex_definir_orcamento_mb(ajustes_tex_mb());
   if (op == AJ_EPG_MEMORIA) ajEpgMemoriaAplicar();
   if (op == AJ_BC_DNS) rede_definir_dns(novo);
-  if (op == AJ_BC_MOMENTO || op == AJ_BC_SAZONAL || op == AJ_BC_TEMPO_ATIVO ||
+  if (op == AJ_BC_LANCAMENTOS || op == AJ_BC_MOMENTO || op == AJ_BC_SAZONAL || op == AJ_BC_TEMPO_ATIVO ||
       (op >= AJ_BC_TEMPO_RAPIDOS && op <= AJ_BC_TEMPO_EPICOS) ||
       op == AJ_BC_STR_ATIVO || op == AJ_BC_STR_TIPO ||
       (op >= AJ_BC_STR_NETFLIX && op <= AJ_BC_STR_CRUNCHYROLL)) desc_repetir();
@@ -10928,6 +10939,7 @@ static AjPreview familiaPreviaOpcao(int op) {
     case AJ_BC_STR_PARAMOUNT: case AJ_BC_STR_CRUNCHYROLL:
     case AJ_BC_SAZONAL: case AJ_BC_TEMPO_ATIVO:
     case AJ_BC_TEMPO_RAPIDOS: case AJ_BC_TEMPO_MINI: case AJ_BC_TEMPO_EPICOS:
+    case AJ_BC_LANCAMENTOS: case AJ_BC_SELOS_NATIVOS:
       return AJPV_HOME;
     case AJ_CW_LIGADO: case AJ_CW_OK: case AJ_CW_FONTE:
     case AJ_CW_ESTILO: case AJ_CW_THUMB: case AJ_CW_BLUR_PROX:

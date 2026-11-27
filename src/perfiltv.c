@@ -5,6 +5,7 @@
 //
 //   aparelho            textura  teto   fios rede  heroi
 //   LG sem MemTotal       96     160       4       1920
+//   LG <= 600 MB          24      32       1        960   webOS 4 entrada ~500 MB (ex: 43LM6300PSB)
 //   LG  < 800 MB          48      64       2       1280   webOS 3 de 2016
 //   LG  < 1,2 GB          48      64       2       1280   webOS 3/4 de 1 GB
 //   LG  < 2 GB           128     160       4       1920   webOS 4/5 menores
@@ -131,6 +132,14 @@ const char *ptv_plataforma_nome(PtvPlataforma p) {
 // Cache contract budgets. Keep docs/cache-capas.md and its SHA256 in sync.
 PtvCache ptv_cache(PtvPlataforma p, long mem) {
   PtvCache c = {2, 96, 48, 8, 512, 1024, 5};
+  if (p == PTV_LG && mem > 0 && mem <= 600) {
+    c.fileiras = 1;
+    c.decodeMb = 24;
+    c.reservaDecodeMb = 16;
+    c.corpoMb = 4;
+    c.discoMb = 128;
+    return c;
+  }
   if (!mem || mem < 1200) { c.fileiras = 1; c.decodeMb = 64; }
   if (p == PTV_ANDROID) {
     c.decodeMb = ptv_tex_auto_mb(p, mem) / 2;
@@ -163,6 +172,7 @@ int ptv_tex_auto_mb(PtvPlataforma p, long mem) {
     return 128;
   }
   if (!mem) return NV_TEX_ORCAMENTO_MB;
+  if (mem <= 600) return 24;    // LG webOS ~500 MB (ex: 43LM6300PSB, SoC m3r)
   if (mem < 1200) return 48;
   if (mem < 3000) return 128;   // 1,2-2 GB e a C9: ver a tabela no topo
   return 192;
@@ -177,6 +187,7 @@ int ptv_tex_teto_mb(PtvPlataforma p, long mem) {
     return 256;
   }
   if (!mem) return 160;
+  if (mem <= 600) return 32;
   if (mem < 1200) return 64;
   if (mem <= 1300) return 128;
   if (mem < 2000) return 160;
@@ -192,6 +203,7 @@ int ptv_fios_rede_max(PtvPlataforma p) { return p == PTV_TIZEN ? 2 : 4; }
 // (4), e LGs de 658 MB aprovaram 64 MB com 4 fios (diagnostico de campo,
 // pessoas 80cd1a98 e f9f204be) — os 4 corpos em voo que a tabela evita.
 static int fiosTeto(PtvPlataforma p, long mem) {
+  if (p == PTV_LG && mem > 0 && mem <= 600) return 1;
   if ((p == PTV_LG || p == PTV_ANDROID || p == PTV_TPK) && mem && mem < 1200) return 2;
   return ptv_fios_rede_max(p);
 }
@@ -199,6 +211,7 @@ static int fiosTeto(PtvPlataforma p, long mem) {
 // Teto de heroi que a RAM aceita. No Tizen 1920 so passa com 2 GB ou mais
 // (a mesma linha de tetoDoHeroi); abaixo disso, 1280 sempre.
 int ptv_heroi_max(PtvPlataforma p, long mem) {
+  if (p == PTV_LG && mem > 0 && mem <= 600) return 960;
   if (p == PTV_TIZEN) return mem >= 2000 ? 1920 : 1280;
   if (p == PTV_TPK && !mem) return 1280;
   if (mem && mem <= 1300) return 1280;
@@ -212,6 +225,7 @@ int ptv_heroi_max(PtvPlataforma p, long mem) {
 int ptv_trailer_indice(PtvPlataforma p, long mem, int teto, const int *alt, int n) {
   int i;
   if (!teto && (p == PTV_TIZEN || p == PTV_TPK) && mem > 0 && mem <= 2048) teto = 720;
+  if (!teto && p == PTV_LG && mem > 0 && mem <= 600) teto = 720;
   for (i = 0; i < n; i++) if (!teto || alt[i] <= teto) return i;
   return n - 1;
 }
@@ -247,7 +261,7 @@ void ptv_candidato(PtvPlataforma p, long mem, PtvModo modo, int travado,
   if (modo == PTV_DESEMPENHO) {
     ptv_padrao(p, mem, out);
     if ((p == PTV_LG || p == PTV_ANDROID) && out->fiosRede > 2) out->fiosRede = 2;
-    out->heroiLarg = 1280;
+    if (out->heroiLarg > 1280) out->heroiLarg = 1280;
   } else {
     out->texMb = ptv_tex_teto_mb(p, mem);
     out->fiosRede = ptv_fios_rede_max(p);
@@ -261,15 +275,17 @@ void ptv_candidato(PtvPlataforma p, long mem, PtvModo modo, int travado,
 }
 
 int ptv_limitar(PtvPlataforma p, long mem, PtvPerfil *pf) {
-  int mudou = 0, teto;
+  int mudou = 0, teto, heroiMax, heroiMin;
   if (!pf) return 0;
   teto = ptv_tex_teto_mb(p, mem);
+  heroiMax = ptv_heroi_max(p, mem);
+  heroiMin = heroiMax < 1280 ? heroiMax : 1280;
   if (pf->texMb < 16) { pf->texMb = ptv_tex_auto_mb(p, mem); mudou = 1; }
   if (pf->texMb > teto) { pf->texMb = teto; mudou = 1; }
   if (pf->fiosRede < 1) { pf->fiosRede = 1; mudou = 1; }
   if (pf->fiosRede > fiosTeto(p, mem)) { pf->fiosRede = fiosTeto(p, mem); mudou = 1; }
-  if (pf->heroiLarg < 1280) { pf->heroiLarg = 1280; mudou = 1; }
-  if (pf->heroiLarg > ptv_heroi_max(p, mem)) { pf->heroiLarg = ptv_heroi_max(p, mem); mudou = 1; }
+  if (pf->heroiLarg < heroiMin) { pf->heroiLarg = heroiMin; mudou = 1; }
+  if (pf->heroiLarg > heroiMax) { pf->heroiLarg = heroiMax; mudou = 1; }
   return mudou;
 }
 

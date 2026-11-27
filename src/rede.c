@@ -117,7 +117,7 @@ void rede_definir_dns(int modo) {
 #define NV_BESTCINE_CLIENT_SECRET ""
 #endif
 #ifndef NV_VERSAO
-#define NV_VERSAO "1.1.12"
+#define NV_VERSAO "1.1.13"
 #endif
 
 // Assina automaticamente requisicoes para rotas dedicadas (/bestcine-tv/ e /bestcine-vod/)

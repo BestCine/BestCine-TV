@@ -866,6 +866,8 @@ int  ajustes_provedores_arquivo(char *dst, unsigned tam, const char *base);
 void ajustes_perfil_padrao(void);
 
 int ajustes_bc_dns(void);
+int ajustes_bc_lancamentos(void);
+int ajustes_bc_selos_nativos(void);
 int ajustes_bc_momento(void);
 int ajustes_bc_sazonal(void);
 int ajustes_bc_tempo_ativo(void);

@@ -130,7 +130,7 @@ static const Item TELA[] = {
     ROT("Fileiras"),
       OPC(AJ_FIL_ORDEM), OPC(AJ_FIL_LIMITE), OPC(AJ_ITENS_FILEIRA),
       OPC(AJ_ESPACO_FILEIRAS), OPC(AJ_ESPACO_TITULOS),
-      OPC(AJ_OCULTAR_NLANC), OPC(AJ_NOTAS_HOME), OPC(AJ_SELO_VISTO), OPC(AJ_ABAS_ESTILO),
+      OPC(AJ_OCULTAR_NLANC), OPC(AJ_NOTAS_HOME), OPC(AJ_SELO_VISTO), OPC(AJ_BC_SELOS_NATIVOS), OPC(AJ_ABAS_ESTILO),
       OPC(AJ_OCULTAR_FILMES_VISTOS), OPC(AJ_BIB_HOME), OPC(AJ_AMIGOS_ESTILO),
       // A curadoria da fileira Herói (#205): a fonte do cartão único.
       OPC(AJ_CURADORIA_URL),
@@ -227,9 +227,9 @@ static const Item TELA[] = {
       OPC(AJ_HERO_TRAILER_ESPERA), OPC(AJ_TRAILER_QUAL), OPC(AJ_TRAILER_ASPECTO),
 
   // ---- CONTA E SISTEMA -----------------------------------------------------------
-  SEC("Catálogos BestCine", "Exclusivo BestCine: Sessão do Momento, Sazonal, Duração e Streamings", "aj_sparkles"),
+  SEC("Catálogos BestCine", "Exclusivo BestCine: Lançamentos, Sessão do Momento, Sazonal, Duração e Streamings", "aj_sparkles"),
     ROT("Inteligentes (Automáticos)"),
-      OPC(AJ_BC_MOMENTO), OPC(AJ_BC_SAZONAL),
+      OPC(AJ_BC_LANCAMENTOS), OPC(AJ_BC_MOMENTO), OPC(AJ_BC_SAZONAL),
     ROT("Catálogos por Tempo / Duração"),
       OPC(AJ_BC_TEMPO_ATIVO), OPC(AJ_BC_TEMPO_RAPIDOS), OPC(AJ_BC_TEMPO_MINI), OPC(AJ_BC_TEMPO_EPICOS),
     ROT("Plataformas de Streaming (Brasil)"),

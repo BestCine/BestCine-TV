@@ -1495,6 +1495,8 @@ static int deMeta(const char *ini, const char *fim, const char *tipo, CatItem *d
 // sob demanda (zero alocacao quando os catalogos de streaming estao desligados).
 #define BC_TMDB_CAT_BASE "bestcine://tmdb-br"
 #define BC_TMDB_CAT_ADDON "bestcine_tmdb_br"
+#define BC_TMDB_LANC_FILMES_ID "lancamentos_filmes"
+#define BC_TMDB_LANC_SERIES_ID "lancamentos_series"
 #define BC_TMDB_MOMENTO_ID "sessao_momento"
 #define BC_TMDB_SAZONAL_ID "especial_sazonal"
 #define BC_TMDB_TEMPO_RAPIDOS_ID "tempo_rapidos"
@@ -1669,7 +1671,8 @@ static int bcTempoIndice(const char *id) {
 }
 
 static int bcQuantosCatalogosAtivos(void) {
-  int total = ajustes_bc_momento() ? 1 : 0;
+  int total = ajustes_bc_lancamentos() ? 2 : 0;
+  if (ajustes_bc_momento()) total++;
   if (ajustes_bc_sazonal() && bcSazonalAtual(NULL, NULL, NULL, NULL, NULL, NULL, NULL))
     total++;
   if (ajustes_bc_tempo_ativo()) {
@@ -1694,6 +1697,22 @@ static const BcStrProv *bcAcharProv(const char *slug) {
   return NULL;
 }
 
+static void bcDataMesesAtras(int meses, char *inicioOut, size_t nInicio,
+                             char *hojeOut, size_t nHoje) {
+  struct tm tmLocal;
+  bcLocalTime(&tmLocal);
+  int ano = tmLocal.tm_year + 1900;
+  int mes = tmLocal.tm_mon + 1;
+  int dia = tmLocal.tm_mday;
+  if (hojeOut && nHoje) snprintf(hojeOut, nHoje, "%04d-%02d-%02d", ano, mes, dia);
+  mes -= meses;
+  while (mes <= 0) {
+    mes += 12;
+    ano -= 1;
+  }
+  if (inicioOut && nInicio) snprintf(inicioOut, nInicio, "%04d-%02d-01", ano, mes);
+}
+
 static int bcLerCatalogoTmdb(const char *tipo, const char *id, int pagina,
                              CatItem *saida, int max, int quantos,
                              int *respondeu, int *semMaisOut) {
@@ -1702,20 +1721,24 @@ static int bcLerCatalogoTmdb(const char *tipo, const char *id, int pagina,
   if (!tipo || !id || !saida || max < 1 || quantos < 1) return 0;
   if (pagina < 1) pagina = 1;
 
+  int ehLancFilmes = !strcmp(id, BC_TMDB_LANC_FILMES_ID);
+  int ehLancSeries = !strcmp(id, BC_TMDB_LANC_SERIES_ID);
   int ehMomento = !strcmp(id, BC_TMDB_MOMENTO_ID);
   int ehSazonal = !strcmp(id, BC_TMDB_SAZONAL_ID);
-  int tempoIdx = (!ehMomento && !ehSazonal) ? bcTempoIndice(id) : -1;
-  const BcStrProv *prov = (!ehMomento && !ehSazonal && tempoIdx < 0) ? bcAcharProv(id) : NULL;
+  int tempoIdx = (!ehLancFilmes && !ehLancSeries && !ehMomento && !ehSazonal) ? bcTempoIndice(id) : -1;
+  const BcStrProv *prov = (!ehLancFilmes && !ehLancSeries && !ehMomento && !ehSazonal && tempoIdx < 0)
+                            ? bcAcharProv(id) : NULL;
   const char *sazId = "", *sazGen = NULL, *sazKw = NULL, *sazNota = "6.5";
   int sazVotos = 120;
   if (ehSazonal && !bcSazonalAtual(&sazId, NULL, NULL, &sazGen, &sazKw, &sazNota, &sazVotos)) return 0;
-  if (!ehMomento && !ehSazonal && tempoIdx < 0 && !prov) return 0;
+  if (!ehLancFilmes && !ehLancSeries && !ehMomento && !ehSazonal && tempoIdx < 0 && !prov) return 0;
 
   const char *chave = desc_chave_tmdb()[0] ? desc_chave_tmdb() : desc_chave_tmdb_reserva();
   if (!chave || !chave[0]) return 0;
 
-  int ehSerie = (!ehMomento && !ehSazonal) &&
-                (tempoIdx == 1 || (tempoIdx < 0 && (!strcmp(tipo, "series") || !strcmp(tipo, "tv"))));
+  int ehSerie = ehLancSeries ||
+                ((!ehLancFilmes && !ehMomento && !ehSazonal) &&
+                 (tempoIdx == 1 || (tempoIdx < 0 && (!strcmp(tipo, "series") || !strcmp(tipo, "tv")))));
   const char *idioma = desc_tmdb_idioma();
   if (!idioma || !idioma[0]) idioma = "pt-BR";
 
@@ -1725,9 +1748,16 @@ static int bcLerCatalogoTmdb(const char *tipo, const char *id, int pagina,
 
   char cacheChave[96];
   snprintf(cacheChave, sizeof cacheChave, "%s:%s:%s:%d:%s",
-           ehMomento ? perId : ehSazonal ? sazId : tempoIdx >= 0 ? id : prov->slug,
+           ehLancFilmes ? BC_TMDB_LANC_FILMES_ID
+           : ehLancSeries ? BC_TMDB_LANC_SERIES_ID
+           : ehMomento ? perId
+           : ehSazonal ? sazId
+           : tempoIdx >= 0 ? id : prov->slug,
            ehSerie ? "tv" : "mv", idioma, pagina,
-           ehMomento ? "m" : ehSazonal ? "z" : tempoIdx >= 0 ? "t" : "s");
+           (ehLancFilmes || ehLancSeries) ? "l"
+           : ehMomento ? "m"
+           : ehSazonal ? "z"
+           : tempoIdx >= 0 ? "t" : "s");
 
   time_t agora = time(NULL);
   if (pagina <= 2) {
@@ -1750,7 +1780,25 @@ static int bcLerCatalogoTmdb(const char *tipo, const char *id, int pagina,
   }
 
   char url[1024];
-  if (ehMomento) {
+  if (ehLancFilmes) {
+    char ini[16], hoje[16];
+    bcDataMesesAtras(4, ini, sizeof ini, hoje, sizeof hoje);
+    snprintf(url, sizeof url,
+             "https://api.themoviedb.org/3/discover/movie?api_key=%s&language=%s"
+             "&region=BR&sort_by=popularity.desc&include_adult=false"
+             "&primary_release_date.gte=%s&primary_release_date.lte=%s"
+             "&vote_count.gte=25&page=%d",
+             chave, idioma, ini, hoje, pagina);
+  } else if (ehLancSeries) {
+    char ini[16], hoje[16];
+    bcDataMesesAtras(6, ini, sizeof ini, hoje, sizeof hoje);
+    snprintf(url, sizeof url,
+             "https://api.themoviedb.org/3/discover/tv?api_key=%s&language=%s"
+             "&sort_by=popularity.desc&include_adult=false"
+             "&first_air_date.gte=%s&first_air_date.lte=%s"
+             "&vote_count.gte=15&page=%d",
+             chave, idioma, ini, hoje, pagina);
+  } else if (ehMomento) {
     char extra[256] = "";
     if (generos && generos[0]) {
       snprintf(extra, sizeof extra, "&with_genres=%s", generos);
@@ -5207,6 +5255,10 @@ static void *montar(void *u) {
           cortados++;
           continue;
         }
+        if (ehCanal(decls[r2].tipo)) {
+          printf("[desc]   fora da home (canais ficam no Guia de TV): %s\n", decls[r2].titulo);
+          continue;
+        }
         if (w2 != r2) decls[w2] = decls[r2];
         w2++;
       }
@@ -5214,9 +5266,90 @@ static void *montar(void *u) {
       if (cortados)
         printf("[desc] %d catalogo(s) so respondem com busca e nao viram fileira\n", cortados);
       nDecl = w2; }
-    // Injeta os catalogos nativos do BestCine via TMDB Discover (Sessao do Momento
-    // e Streaming Brasil opcionais) antes da ordenacao e do registro de fileiras.
+    // Injeta Filmes Populares e Series Populares (Cinemeta padrao, igual ao BestCine PC/Mobile)
+    // no topo da Home caso ainda nao existam nas declaracoes.
     {
+      int temPopFilmes = 0, temPopSeries = 0, ci2;
+      for (ci2 = 0; ci2 < nDecl; ci2++) {
+        if (baseEhCinemeta(decls[ci2].base) && !strcmp(decls[ci2].id, "top")) {
+          if (!strcmp(decls[ci2].tipo, "movie")) temPopFilmes = 1;
+          else if (!strcmp(decls[ci2].tipo, "series")) temPopSeries = 1;
+        }
+      }
+      int popPos = 0;
+      if (!temPopFilmes && nDecl < DECL_MAX) {
+        Decl d;
+        memset(&d, 0, sizeof d);
+        snprintf(d.chave, sizeof d.chave, "bestcine_builtin_cinemeta_movie_top");
+        snprintf(d.desativar, sizeof d.desativar, "https://v3-cinemeta.strem.io_movie_top");
+        snprintf(d.titulo, sizeof d.titulo, "Filmes Populares");
+        snprintf(d.tipo, sizeof d.tipo, "movie");
+        snprintf(d.id, sizeof d.id, "top");
+        snprintf(d.base, sizeof d.base, "https://v3-cinemeta.strem.io");
+        snprintf(d.nomeAddon, sizeof d.nomeAddon, "BestCine");
+        d.paginavel = 1;
+        if (popPos < nDecl) memmove(&decls[popPos + 1], &decls[popPos], sizeof(Decl) * (size_t)(nDecl - popPos));
+        decls[popPos] = d;
+        nDecl++;
+        popPos++;
+      }
+      if (!temPopSeries && nDecl < DECL_MAX) {
+        Decl d;
+        memset(&d, 0, sizeof d);
+        snprintf(d.chave, sizeof d.chave, "bestcine_builtin_cinemeta_series_top");
+        snprintf(d.desativar, sizeof d.desativar, "https://v3-cinemeta.strem.io_series_top");
+        snprintf(d.titulo, sizeof d.titulo, "Séries Populares");
+        snprintf(d.tipo, sizeof d.tipo, "series");
+        snprintf(d.id, sizeof d.id, "top");
+        snprintf(d.base, sizeof d.base, "https://v3-cinemeta.strem.io");
+        snprintf(d.nomeAddon, sizeof d.nomeAddon, "BestCine");
+        d.paginavel = 1;
+        if (popPos < nDecl) memmove(&decls[popPos + 1], &decls[popPos], sizeof(Decl) * (size_t)(nDecl - popPos));
+        decls[popPos] = d;
+        nDecl++;
+        popPos++;
+      }
+    }
+    // Injeta os catalogos nativos do BestCine via TMDB Discover (Lancamentos,
+    // Sessao do Momento e Streaming Brasil opcionais) antes da ordenacao e do registro de fileiras.
+    {
+      int bcInsPos = nDecl > 2 ? 2 : nDecl;
+      if (ajustes_bc_lancamentos()) {
+        if (nDecl < DECL_MAX) {
+          Decl d;
+          memset(&d, 0, sizeof d);
+          snprintf(d.chave, sizeof d.chave, "%s_movie_%s", BC_TMDB_CAT_ADDON, BC_TMDB_LANC_FILMES_ID);
+          snprintf(d.desativar, sizeof d.desativar, "%s_movie_%s", BC_TMDB_CAT_BASE, BC_TMDB_LANC_FILMES_ID);
+          snprintf(d.titulo, sizeof d.titulo, "Filmes • Lançamentos");
+          snprintf(d.tipo, sizeof d.tipo, "movie");
+          snprintf(d.id, sizeof d.id, "%s", BC_TMDB_LANC_FILMES_ID);
+          snprintf(d.base, sizeof d.base, "%s", BC_TMDB_CAT_BASE);
+          snprintf(d.nomeAddon, sizeof d.nomeAddon, "BestCine Lançamentos");
+          d.paginavel = 1;
+          int pos = bcInsPos <= nDecl ? bcInsPos : nDecl;
+          if (pos < nDecl) memmove(&decls[pos + 1], &decls[pos], sizeof(Decl) * (size_t)(nDecl - pos));
+          decls[pos] = d;
+          nDecl++;
+          bcInsPos = pos + 1;
+        }
+        if (nDecl < DECL_MAX) {
+          Decl d;
+          memset(&d, 0, sizeof d);
+          snprintf(d.chave, sizeof d.chave, "%s_series_%s", BC_TMDB_CAT_ADDON, BC_TMDB_LANC_SERIES_ID);
+          snprintf(d.desativar, sizeof d.desativar, "%s_series_%s", BC_TMDB_CAT_BASE, BC_TMDB_LANC_SERIES_ID);
+          snprintf(d.titulo, sizeof d.titulo, "Séries • Lançamentos");
+          snprintf(d.tipo, sizeof d.tipo, "series");
+          snprintf(d.id, sizeof d.id, "%s", BC_TMDB_LANC_SERIES_ID);
+          snprintf(d.base, sizeof d.base, "%s", BC_TMDB_CAT_BASE);
+          snprintf(d.nomeAddon, sizeof d.nomeAddon, "BestCine Lançamentos");
+          d.paginavel = 1;
+          int pos = bcInsPos <= nDecl ? bcInsPos : nDecl;
+          if (pos < nDecl) memmove(&decls[pos + 1], &decls[pos], sizeof(Decl) * (size_t)(nDecl - pos));
+          decls[pos] = d;
+          nDecl++;
+          bcInsPos = pos + 1;
+        }
+      }
       if (ajustes_bc_momento() && nDecl < DECL_MAX) {
         const char *perRotulo = "Noite de Estreia";
         bcMomentoPeriodo(NULL, &perRotulo, NULL, NULL, NULL, NULL);
@@ -5230,11 +5363,11 @@ static void *montar(void *u) {
         snprintf(d.base, sizeof d.base, "%s", BC_TMDB_CAT_BASE);
         snprintf(d.nomeAddon, sizeof d.nomeAddon, "BestCine Dinâmico");
         d.paginavel = 1;
-        // Insere logo apos os primeiros catalogos principais (ou no topo se houver poucos)
-        int pos = nDecl > 2 ? 2 : nDecl;
+        int pos = bcInsPos <= nDecl ? bcInsPos : nDecl;
         if (pos < nDecl) memmove(&decls[pos + 1], &decls[pos], sizeof(Decl) * (size_t)(nDecl - pos));
         decls[pos] = d;
         nDecl++;
+        bcInsPos = pos + 1;
       }
       if (ajustes_bc_sazonal() && nDecl < DECL_MAX) {
         const char *sazTit = NULL, *sazSub = NULL;
@@ -5249,13 +5382,14 @@ static void *montar(void *u) {
           snprintf(d.base, sizeof d.base, "%s", BC_TMDB_CAT_BASE);
           snprintf(d.nomeAddon, sizeof d.nomeAddon, "BestCine Sazonal");
           d.paginavel = 1;
-          int pos = nDecl > 3 ? 3 : nDecl;
+          int pos = bcInsPos <= nDecl ? bcInsPos : nDecl;
           if (pos < nDecl) memmove(&decls[pos + 1], &decls[pos], sizeof(Decl) * (size_t)(nDecl - pos));
           decls[pos] = d;
           nDecl++;
+          bcInsPos = pos + 1;
         }
       }
-      int bcOptPos = nDecl > 4 ? 4 : nDecl;
+      int bcOptPos = bcInsPos;
       if (ajustes_bc_tempo_ativo()) {
         static const struct { const char *id; const char *tipo; const char *titulo; } TEMPOS[3] = {
           { BC_TMDB_TEMPO_RAPIDOS_ID, "movie",  "Filmes Rápidos • Até 90 min" },
@@ -9478,6 +9612,70 @@ static int vtPaginaSoDeVistos(int antes, int adicionados, int paginas) {
 // resolve pelo desc_pedir_titulo_tmdb (vertudo checa o prefixo). O tipo vem
 // do media_type do item quando ele existe (combined_credits mistura filme e
 // serie); sem ele vale o tipo padrao da fonte.
+static const char *bcTmdbGeneroNomePt(int gid) {
+  switch (gid) {
+    case 28: case 10759: return "Ação";
+    case 12: return "Aventura";
+    case 16: return "Animação";
+    case 35: return "Comédia";
+    case 80: return "Crime";
+    case 99: return "Documentário";
+    case 18: return "Drama";
+    case 10751: return "Família";
+    case 14: return "Fantasia";
+    case 36: return "História";
+    case 27: return "Terror";
+    case 10402: return "Música";
+    case 9648: return "Mistério";
+    case 10749: return "Romance";
+    case 878: case 10765: return "Sci-Fi";
+    case 10770: return "Filme TV";
+    case 53: return "Suspense";
+    case 10752: case 10768: return "Guerra";
+    case 37: return "Faroeste";
+    case 10762: return "Infantil";
+    case 10764: return "Reality";
+    default: return NULL;
+  }
+}
+
+static void bcExtrairGenerosTmdb(const char *p, const char *f, char *dst, size_t n) {
+  const char *g = p;
+  if (!dst || !n) return;
+  dst[0] = 0;
+  if (!p || !f || f <= p) return;
+  while (g < f) {
+    const char *hit = strstr(g, "\"genre_ids\"");
+    if (!hit || hit >= f) return;
+    g = hit + 11;
+    while (g < f && *g != '[' && *g != '}' && *g != '\0') g++;
+    if (g >= f || *g != '[') continue;
+    g++;
+    size_t usado = 0;
+    int adicionados = 0;
+    while (g < f && *g && *g != ']' && adicionados < 2) {
+      while (g < f && *g && *g != ']' && (*g < '0' || *g > '9')) g++;
+      if (g >= f || *g == ']' || !*g) break;
+      int gid = 0;
+      while (g < f && *g >= '0' && *g <= '9') {
+        gid = gid * 10 + (*g - '0');
+        g++;
+      }
+      const char *nome = bcTmdbGeneroNomePt(gid);
+      if (nome) {
+        int w = snprintf(dst + usado, n - usado, "%s%s", adicionados ? " · " : "", nome);
+        if (w > 0 && (size_t)w < n - usado) {
+          usado += (size_t)w;
+          adicionados++;
+        } else {
+          break;
+        }
+      }
+    }
+    return;
+  }
+}
+
 static int deMetaTmdb(const char *p, const char *f, const char *tipoPadrao,
                       CatItem *d) {
   char v[512];
@@ -9506,7 +9704,9 @@ static int deMetaTmdb(const char *p, const char *f, const char *tipoPadrao,
     if (!js_texto(p, f, "release_date", dt, sizeof dt))
       js_texto(p, f, "first_air_date", dt, sizeof dt);
     snprintf(d->meta, sizeof d->meta, "%.4s", dt); }
-  snprintf(d->genero, sizeof d->genero, "%s", i18n(rotuloTipoSing(d->tipo)));
+  bcExtrairGenerosTmdb(p, f, d->genero, sizeof d->genero);
+  if (!d->genero[0])
+    snprintf(d->genero, sizeof d->genero, "%s", i18n(rotuloTipoSing(d->tipo)));
   d->nota = (int)(js_num(p, f, "vote_average", 0.0) * 10.0 + 0.5);
   js_texto(p, f, "overview", d->sinopse, sizeof d->sinopse);
   return 1;

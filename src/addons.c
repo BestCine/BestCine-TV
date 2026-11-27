@@ -3771,7 +3771,7 @@ int addons_motivo_vazio(char *dst, unsigned n) {
   PlugResumo plugins;
   plugins_resumo(alvoId, alvoTipo, &plugins);
   if (plugins.enfileirados && !r->comFontes)
-    snprintf(dst, n, i18n("Plugins não encontraram fontes (%d de %d scrapers verificados)"),
+    snprintf(dst, n, i18n("Plugins não encontraram fontes (%d de %d provedores verificados)"),
              plugins.terminados, plugins.enfileirados);
   // Other extra providers are absent from the Stremio summary. Let callers
   // use their generic source wording while one is active.
