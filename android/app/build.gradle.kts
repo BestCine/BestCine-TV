@@ -69,6 +69,11 @@ android {
             storePassword = System.getenv("NUVIO_KEYSTORE_PASS")
             keyAlias = System.getenv("NUVIO_KEY_ALIAS")
             keyPassword = System.getenv("NUVIO_KEY_PASS")
+            // Assinatura dupla V1 (JAR) + V2 (APK Signature Scheme v2):
+            // mantem a mesma chave de release e maximiza compatibilidade com
+            // Android TV 7/8/9 (ex.: boxes Amlogic / BTV Cast) e Android 10+.
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
     buildTypes {
@@ -86,8 +91,9 @@ android {
     // O nucleo abre libcurl.so/libjpeg.so por dlopen: precisam estar em
     // lib/<abi>/ ja extraidas (extractNativeLibs), nao dentro do APK.
     packaging { jniLibs { useLegacyPackaging = true } }
-    // Arte e fontes ja vem comprimidas/pequenas; sem recompressao de png/ttf.
-    androidResources { noCompress += listOf("png", "jpg", "webp", "ttf", "json") }
+    // Imagens ja vem comprimidas; fontes (.ttf) e JSON comprimem bem no APK (~3 MB a menos)
+    // e sao extraidas para filesDir/res na primeira abertura (nao usam AssetManager.openFd).
+    androidResources { noCompress += listOf("png", "jpg", "webp") }
 
     sourceSets["main"].apply {
         java.srcDir("build/sdl-java")                 // classes org.libsdl.app copiadas do SDL

@@ -8,10 +8,13 @@
 #include "perfisessao.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
 #include <pthread.h>
 #include <errno.h>
+
+static void apagar(volatile char *p, size_t n);
 
 // Isolated session fixtures may omit the profile producer; complete apps
 // always link it. Token boundaries invalidate ownership without UI callbacks.
@@ -31,6 +34,7 @@ static void identidadePerfilTravar(void) {
 }
 
 #define ARQ_SESSAO "sessao.txt"
+#define ARQ_NUVIO_SYNC "nuvio-sync.txt"
 // MEDIDO: a propria resposta do start traz `poll_interval_seconds` (3 no
 // servidor de hoje). Este valor e so o padrao de quando ela nao vier — o
 // intervalo real vem do servidor, que e quem sabe o custo que ele aguenta.
@@ -77,6 +81,31 @@ static char bcAvatar[300];
 static char bcEmail[160];
 static char bcPlano[48];
 static char bcVencimento[48];
+
+// Conta Nuvio opcional em Rastreamento (paralela a sessao BestCine; addons somente leitura de catalogo)
+static int           nvAtiva;
+static char          nvAcesso[TOKMAX];
+static char          nvRenovar[TOKMAX];
+static char          nvSub[80];
+static long          nvExpiraEm;
+static int           nvRenovando;
+static unsigned      nvRodada;
+static int           nvRodadaRes;
+static int           nvRodadaSt;
+static NvNuvioEstado nvEstado = NV_NUVIO_PARADO;
+static char          nvCodigo[64];
+static char          nvUrl[400];
+static char          nvDeviceCode[128];
+static char          nvNonce[64];
+static char          nvAnonTok[TOKMAX];
+static char          nvErro[240];
+static unsigned      nvPollMs = POLL_MS;
+static unsigned      nvProximoPoll;
+static unsigned      nvComecouMs;
+static pthread_t     nvFio;
+static int           nvFioVivo;
+static int           nvPassoPronto;
+static int           nvConectouAgora;
 
 static SesEstado estado = SES_DESLOGADO;
 static char codigo[64];
@@ -273,6 +302,86 @@ static void gravarSessao(void) {
 }
 
 // tokTrava presa.
+static void limparNuvioL(void) {
+  nvAtiva = 0;
+  nvExpiraEm = 0;
+  nvSub[0] = 0;
+  apagar(nvAcesso, sizeof nvAcesso);
+  apagar(nvRenovar, sizeof nvRenovar);
+}
+
+// tokTrava presa (ordem tokTrava -> dadosTrava).
+static void gravarNuvioL(void) {
+  char buf[6400];
+  snprintf(buf, sizeof buf, "%s\n%s\n", nvAcesso, nvRenovar);
+  dados_gravar(ARQ_NUVIO_SYNC, buf);
+  dados_sincronizar_logo();
+}
+
+// tokTrava presa. Extrai `sub` e `exp` do JWT da Conta Nuvio.
+static void nvLerJwtL(const char *token) {
+  const char *p1, *p2;
+  char payload[2200];
+  nvExpiraEm = 0;
+  nvSub[0] = 0;
+  if (token && *token && (p1 = strchr(token, '.')) && (p2 = strchr(p1 + 1, '.')) &&
+      b64url(p1 + 1, (size_t)(p2 - p1 - 1), payload, sizeof payload)) {
+    const char *fim = payload + strlen(payload);
+    js_texto(payload, fim, "sub", nvSub, sizeof nvSub);
+    nvExpiraEm = (long)js_num(payload, fim, "exp", 0);
+  }
+}
+
+static int nvVencidoEm(long folga) {
+  if (!nvAcesso[0]) return 1;
+  if (!nvExpiraEm) return 0;
+  return nvExpiraEm <= (long)time(NULL) + folga;
+}
+
+static int nvSyncRpcPermitida(const char *funcao) {
+  static const char *const permitidas[] = {
+    "sync_pull_watch_progress",
+    "sync_push_watch_progress",
+    "sync_delete_watch_progress",
+    "sync_pull_watched_items",
+    "sync_push_watched_items",
+    "sync_delete_watched_items",
+    "sync_pull_library",
+    "sync_push_library",
+    "sync_push_library_items",
+    "sync_delete_library_items"
+  };
+  unsigned i;
+  if (!funcao || !*funcao) return 0;
+  for (i = 0; i < sizeof permitidas / sizeof *permitidas; i++) {
+    if (!strcmp(funcao, permitidas[i])) return 1;
+  }
+  return 0;
+}
+
+static void carregarNuvio(void) {
+  char *buf = dados_ler(ARQ_NUVIO_SYNC);
+  char *l1, *l2;
+  if (!buf) return;
+  l1 = buf;
+  l2 = strchr(l1, '\n');
+  if (l2) { *l2++ = 0; char *nl = strchr(l2, '\n'); if (nl) *nl = 0; }
+  if (l1[0] && jwtValido(l1)) {
+    pthread_mutex_lock(&tokTrava);
+    snprintf(nvAcesso, sizeof nvAcesso, "%s", l1);
+    snprintf(nvRenovar, sizeof nvRenovar, "%s", l2 ? l2 : "");
+    nvLerJwtL(nvAcesso);
+    nvAtiva = 1;
+    nvEstado = NV_NUVIO_LIGADO;
+    pthread_mutex_unlock(&tokTrava);
+    printf("[sessao] Conta Nuvio (Rastreamento) restaurada\n");
+  } else {
+    dados_apagar(ARQ_NUVIO_SYNC);
+  }
+  free(buf);
+}
+
+// tokTrava presa.
 static void limpar(void) {
   int mudou = acesso[0] || renovar[0] || sub[0] || bcAtiva;
   if (mudou) { identidadePerfilTravar(); invalidarPerfil(); }
@@ -281,6 +390,7 @@ static void limpar(void) {
   expiraEm = 0;
   bcAtiva = 0;
   bcToken[0] = bcNome[0] = bcAvatar[0] = bcEmail[0] = bcPlano[0] = bcVencimento[0] = 0;
+  limparNuvioL();
   if (mudou) nv_perfil_sessao_destravar();
 }
 
@@ -584,6 +694,79 @@ static char *pedir(int tabela, const char *a1, const char *a2, int *status) {
   return resp;
 }
 
+static int renovarNuvioToken(const char *visto, long folga, int *stOut) {
+  Jsw w;
+  char *resp;
+  char r[TOKMAX], a2[TOKMAX], r2[TOKMAX];
+  int st = 0, ok;
+  *stOut = 0;
+  if (!nuvem_supabase_pronta()) return 0;
+  pthread_mutex_lock(&tokTrava);
+  for (;;) {
+    if (visto ? (nvAcesso[0] && strcmp(nvAcesso, visto)) : (nvAcesso[0] && !nvVencidoEm(folga))) {
+      pthread_mutex_unlock(&tokTrava);
+      return 1;
+    }
+    if (!nvRenovar[0]) { pthread_mutex_unlock(&tokTrava); return 0; }
+    if (!nvRenovando) break;
+    { unsigned minha = nvRodada;
+      while (nvRenovando && nvRodada == minha) pthread_cond_wait(&tokCond, &tokTrava);
+      if (nvRodada != minha && nvRodadaRes <= 0) {
+        int res = nvRodadaRes;
+        *stOut = nvRodadaSt;
+        pthread_mutex_unlock(&tokTrava);
+        return res;
+      }
+    }
+  }
+  nvRenovando = 1;
+  snprintf(r, sizeof r, "%s", nvRenovar);
+  pthread_mutex_unlock(&tokTrava);
+
+  jsw_iniciar(&w);
+  jsw_obj_ini(&w);
+  jsw_cs(&w, "refresh_token", r);
+  jsw_obj_fim(&w);
+  resp = nuvem_post("/auth/v1/token?grant_type=refresh_token",
+                    jsw_texto_final(&w), NULL, &st);
+  jsw_livre(&w);
+  ok = (resp && st >= 200 && st < 300 && extrairTokens(resp, a2, r2));
+  free(resp);
+
+  pthread_mutex_lock(&tokTrava);
+  if (strcmp(nvRenovar, r)) {
+    nvRodadaRes = 1;
+  } else if (ok) {
+    snprintf(nvAcesso, sizeof nvAcesso, "%s", a2);
+    snprintf(nvRenovar, sizeof nvRenovar, "%s", r2);
+    nvLerJwtL(nvAcesso);
+    nvAtiva = 1;
+    nvEstado = NV_NUVIO_LIGADO;
+    gravarNuvioL();
+    nvRodadaRes = 1;
+  } else if (falhaServidor(st)) {
+    nvRodadaRes = -1;
+  } else {
+    printf("[sessao] Conta Nuvio: renovacao recusada (HTTP %d), desconectando rastreamento Nuvio\n", st);
+    limparNuvioL();
+    dados_apagar(ARQ_NUVIO_SYNC);
+    nvEstado = NV_NUVIO_PARADO;
+    nvRodadaRes = 0;
+  }
+  nvRodadaSt = st;
+  nvRodada++;
+  nvRenovando = 0;
+  ok = nvRodadaRes;
+  pthread_cond_broadcast(&tokCond);
+  pthread_mutex_unlock(&tokTrava);
+  apagar(r, sizeof r);
+  apagar(a2, sizeof a2);
+  apagar(r2, sizeof r2);
+  *stOut = st;
+  if (ok < 0) nuvem_falhou();
+  return ok;
+}
+
 static char *chamar(const char *caminho, const char *corpo, int *status) {
   return pedir(0, caminho, corpo, status);
 }
@@ -591,14 +774,85 @@ static char *chamar(const char *caminho, const char *corpo, int *status) {
 char *sessao_rpc(const char *funcao, const char *corpoJson, int *status) {
   char caminho[300];
   if (status) *status = 0;
-  if (bcAtiva || !nuvem_supabase_pronta() || !funcao || !*funcao) return NULL;
+  if (!nuvem_supabase_pronta() || !funcao || !*funcao) return NULL;
+  if (bcAtiva) {
+    char tok[TOKMAX];
+    char *resp;
+    int st = 0, precisa, temR;
+    if (!nvAtiva || !nvSyncRpcPermitida(funcao)) return NULL;
+    pthread_mutex_lock(&tokTrava);
+    precisa = nvVencidoEm(30) && nvRenovar[0];
+    pthread_mutex_unlock(&tokTrava);
+    if (precisa) {
+      int stR = 0;
+      if (renovarNuvioToken(NULL, 30, &stR) < 0) { if (status) *status = stR; return NULL; }
+    }
+    pthread_mutex_lock(&tokTrava);
+    snprintf(tok, sizeof tok, "%s", nvAtiva ? nvAcesso : "");
+    temR = nvRenovar[0] != 0;
+    pthread_mutex_unlock(&tokTrava);
+    if (!tok[0]) return NULL;
+    snprintf(caminho, sizeof caminho, "/rest/v1/rpc/%s", funcao);
+    resp = nuvem_post(caminho, corpoJson, tok, &st);
+    if (st == 401 && temR) {
+      int rr, stR = 0;
+      free(resp);
+      rr = renovarNuvioToken(tok, 30, &stR);
+      if (rr <= 0) { apagar(tok, sizeof tok); if (status) *status = rr < 0 ? stR : 401; return NULL; }
+      pthread_mutex_lock(&tokTrava);
+      snprintf(tok, sizeof tok, "%s", nvAtiva ? nvAcesso : "");
+      pthread_mutex_unlock(&tokTrava);
+      resp = nuvem_post(caminho, corpoJson, tok, &st);
+    }
+    apagar(tok, sizeof tok);
+    if (status) *status = st;
+    if (!resp || st == 0 || st == 429 || st >= 500) nuvem_falhou();
+    else nuvem_ok();
+    return resp;
+  }
   snprintf(caminho, sizeof caminho, "/rest/v1/rpc/%s", funcao);
   return chamar(caminho, corpoJson, status);
 }
 
 char *sessao_tabela(const char *tabela, const char *consulta, int *status) {
   if (status) *status = 0;
-  if (bcAtiva || !nuvem_supabase_pronta()) return NULL;
+  if (!nuvem_supabase_pronta() || !tabela || !*tabela) return NULL;
+  if (bcAtiva) {
+    char tok[TOKMAX];
+    char *resp;
+    int st = 0, precisa, temR;
+    // Em modo BestCine TV, permite leitura EXCLUSIVA da tabela `addons` da Conta Nuvio
+    // (somente leitura: addons externos de catalogo sao filtrados em 2 camadas).
+    if (!nvAtiva || strcmp(tabela, "addons") != 0) return NULL;
+    pthread_mutex_lock(&tokTrava);
+    precisa = nvVencidoEm(30) && nvRenovar[0];
+    pthread_mutex_unlock(&tokTrava);
+    if (precisa) {
+      int stR = 0;
+      if (renovarNuvioToken(NULL, 30, &stR) < 0) { if (status) *status = stR; return NULL; }
+    }
+    pthread_mutex_lock(&tokTrava);
+    snprintf(tok, sizeof tok, "%s", nvAtiva ? nvAcesso : "");
+    temR = nvRenovar[0] != 0;
+    pthread_mutex_unlock(&tokTrava);
+    if (!tok[0]) return NULL;
+    resp = nuvem_tabela(tabela, consulta, tok, &st);
+    if (st == 401 && temR) {
+      int rr, stR = 0;
+      free(resp);
+      rr = renovarNuvioToken(tok, 30, &stR);
+      if (rr <= 0) { apagar(tok, sizeof tok); if (status) *status = rr < 0 ? stR : 401; return NULL; }
+      pthread_mutex_lock(&tokTrava);
+      snprintf(tok, sizeof tok, "%s", nvAtiva ? nvAcesso : "");
+      pthread_mutex_unlock(&tokTrava);
+      resp = nuvem_tabela(tabela, consulta, tok, &st);
+    }
+    apagar(tok, sizeof tok);
+    if (status) *status = st;
+    if (!resp || st == 0 || st == 429 || st >= 500) nuvem_falhou();
+    else nuvem_ok();
+    return resp;
+  }
   return pedir(1, tabela, consulta, status);
 }
 
@@ -864,6 +1118,7 @@ void sessao_iniciar(void) {
         bcAvatar[0] = 0;
       estado = SES_LOGADO;
       printf("[sessao] BestCine TV restaurada (%s / %s)\n", bcNome, bcPlano);
+      carregarNuvio();
     } else {
       dados_apagar(ARQ_SESSAO);
     }
@@ -1045,13 +1300,15 @@ int sessao_token_copiar(char *dst, size_t n) {
 }
 
 int sessao_identidade_local_copiar(char *usuario, size_t nUsuario, char *jwt, size_t nJwt) {
+  const char *tokSrc;
   if (!usuario || !nUsuario || !jwt || !nJwt) return 0;
   usuario[0] = jwt[0] = 0;
   pthread_mutex_lock(&tokTrava);
-  int tem = !anonima && acesso[0] && sub[0] && strlen(sub) < nUsuario && strlen(acesso) < nJwt;
+  tokSrc = (bcAtiva && nvAtiva && nvAcesso[0]) ? nvAcesso : acesso;
+  int tem = !anonima && tokSrc[0] && sub[0] && strlen(sub) < nUsuario && strlen(tokSrc) < nJwt;
   if (tem) {
     snprintf(usuario, nUsuario, "%s", sub);
-    snprintf(jwt, nJwt, "%s", acesso);
+    snprintf(jwt, nJwt, "%s", tokSrc);
   }
   pthread_mutex_unlock(&tokTrava);
   return tem;
@@ -1059,7 +1316,11 @@ int sessao_identidade_local_copiar(char *usuario, size_t nUsuario, char *jwt, si
 
 void sessao_token_recusado(const char *tok) {
   int st = 0;
-  if (bcAtiva || !tok || !*tok) return;
+  if (!tok || !*tok) return;
+  if (bcAtiva) {
+    if (nvAtiva) renovarNuvioToken(tok, 30, &st);
+    return;
+  }
   pthread_mutex_lock(&tokTrava);
   if (!strcmp(tok, acesso)) invalidarPerfil();
   pthread_mutex_unlock(&tokTrava);
@@ -1129,9 +1390,255 @@ void sessao_sair(void) {
   pthread_mutex_lock(&tokTrava);
   limpar();
   dados_apagar(ARQ_SESSAO);
+  dados_apagar(ARQ_NUVIO_SYNC);
   pthread_mutex_unlock(&tokTrava);
   codigo[0] = 0;
   erro[0] = 0;
   estado = SES_DESLOGADO;
+  nvEstado = NV_NUVIO_PARADO;
+  nvCodigo[0] = nvUrl[0] = nvDeviceCode[0] = nvNonce[0] = nvErro[0] = 0;
+  apagar(nvAnonTok, sizeof nvAnonTok);
   printf("[sessao] sessao encerrada e apagada do disco\n");
+}
+
+// ---------------------------------------------------------------- Conta Nuvio (Rastreamento)
+
+static void nvSoltar(void *(*rotina)(void *)) {
+  if (nvFioVivo) return;
+  nvPassoPronto = 0;
+  if (pthread_create(&nvFio, NULL, rotina, NULL) == 0) {
+    pthread_detach(nvFio);
+    nvFioVivo = 1;
+  } else {
+    snprintf(nvErro, sizeof nvErro, "Sem thread disponível para conectar Conta Nuvio.");
+    nvEstado = NV_NUVIO_ERRO;
+  }
+}
+
+static void *fioNuvioPedir(void *u) {
+  Jsw w;
+  char *resp = NULL;
+  char a[TOKMAX], r[TOKMAX];
+  int st = 0;
+  unsigned long s1 = (unsigned long)time(NULL);
+  unsigned long s2 = (unsigned long)clock();
+  unsigned long s3 = (unsigned long)(uintptr_t)&w;
+  (void)u;
+
+  nvErro[0] = nvCodigo[0] = nvUrl[0] = nvDeviceCode[0] = 0;
+  apagar(nvAnonTok, sizeof nvAnonTok);
+  snprintf(nvNonce, sizeof nvNonce, "%08lx%08lx%08lx", s1 ^ 0x5a3c91d7UL, s2 ^ 0xa5c3197dUL, s3);
+
+  // Passo 1: sessao anonima temporaria no Supabase do Nuvio para iniciar o pareamento
+  resp = nuvem_post("/auth/v1/signup", "{\"data\":{\"tv_client\":\"tv\"}}", NULL, &st);
+  if (!(resp && st >= 200 && st < 300 && extrairTokens(resp, a, r))) {
+    free(resp);
+    resp = nuvem_post("/auth/v1/token?grant_type=anonymous", "{}", NULL, &st);
+    if (!(resp && st >= 200 && st < 300 && extrairTokens(resp, a, r))) {
+      free(resp);
+      snprintf(nvErro, sizeof nvErro,
+               st ? "Servidor Nuvio respondeu HTTP %d ao iniciar conexão."
+                  : "Não foi possível conectar ao servidor da Conta Nuvio.", st);
+      nvEstado = NV_NUVIO_ERRO;
+      nvPassoPronto = 1;
+      return NULL;
+    }
+  }
+  free(resp);
+  snprintf(nvAnonTok, sizeof nvAnonTok, "%s", a);
+  apagar(a, sizeof a);
+  apagar(r, sizeof r);
+
+  // Passo 2: solicita codigo de pareamento de dispositivo
+  jsw_iniciar(&w);
+  jsw_obj_ini(&w);
+  jsw_cs(&w, "p_device_nonce", nvNonce);
+  jsw_cs(&w, "p_redirect_base_url", "https://nuvio.tv/link");
+  jsw_cs(&w, "p_device_name", "BestCine TV");
+  jsw_cs(&w, "p_device_type", "tv");
+  jsw_obj_fim(&w);
+  resp = nuvem_post("/rest/v1/rpc/start_device_login_session", jsw_texto_final(&w), nvAnonTok, &st);
+  jsw_livre(&w);
+
+  if (resp && st >= 200 && st < 300) {
+    const char *fim = resp + strlen(resp);
+    double intervalo;
+    js_texto(resp, fim, "device_code", nvDeviceCode, sizeof nvDeviceCode);
+    js_texto(resp, fim, "user_code", nvCodigo, sizeof nvCodigo);
+    js_texto(resp, fim, "verification_uri_complete", nvUrl, sizeof nvUrl);
+    if (!nvUrl[0]) js_texto(resp, fim, "verification_uri", nvUrl, sizeof nvUrl);
+    intervalo = js_num(resp, fim, "poll_interval_seconds", 3);
+    if (intervalo >= 2.0 && intervalo <= 15.0) nvPollMs = (unsigned)(intervalo * 1000.0);
+  }
+  free(resp);
+
+  if (!nvDeviceCode[0] || !nvCodigo[0]) {
+    snprintf(nvErro, sizeof nvErro,
+             st ? "Não foi possível gerar o código Nuvio (HTTP %d)."
+                : "Não foi possível conectar à Conta Nuvio. Verifique sua internet.", st);
+    nvEstado = NV_NUVIO_ERRO;
+  } else {
+    if (!nvUrl[0]) snprintf(nvUrl, sizeof nvUrl, "https://nuvio.tv/link");
+    nvEstado = NV_NUVIO_AGUARDANDO;
+  }
+  nvPassoPronto = 1;
+  return NULL;
+}
+
+static void *fioNuvioPoll(void *u) {
+  Jsw w;
+  char *resp = NULL;
+  char status[48];
+  int st = 0;
+  (void)u;
+
+  if (!nvDeviceCode[0] || !nvNonce[0] || !nvAnonTok[0]) {
+    snprintf(nvErro, sizeof nvErro, "Sessão de pareamento inválida. Tente novamente.");
+    nvEstado = NV_NUVIO_ERRO;
+    nvPassoPronto = 1;
+    return NULL;
+  }
+
+  jsw_iniciar(&w);
+  jsw_obj_ini(&w);
+  jsw_cs(&w, "p_code", nvDeviceCode);
+  jsw_cs(&w, "p_device_nonce", nvNonce);
+  jsw_obj_fim(&w);
+  resp = nuvem_post("/rest/v1/rpc/poll_tv_login_session", jsw_texto_final(&w), nvAnonTok, &st);
+  jsw_livre(&w);
+
+  status[0] = 0;
+  if (resp && st >= 200 && st < 300) {
+    js_texto(resp, resp + strlen(resp), "status", status, sizeof status);
+  }
+  free(resp);
+
+  if (!strcmp(status, "approved")) {
+    char a[TOKMAX], r[TOKMAX];
+    nvEstado = NV_NUVIO_TROCANDO;
+    jsw_iniciar(&w);
+    jsw_obj_ini(&w);
+    jsw_cs(&w, "code", nvDeviceCode);
+    jsw_cs(&w, "device_nonce", nvNonce);
+    jsw_obj_fim(&w);
+    resp = nuvem_post("/functions/v1/tv-logins-exchange", jsw_texto_final(&w), nvAnonTok, &st);
+    jsw_livre(&w);
+    if (resp && st >= 200 && st < 300 && extrairTokens(resp, a, r)) {
+      pthread_mutex_lock(&tokTrava);
+      snprintf(nvAcesso, sizeof nvAcesso, "%s", a);
+      snprintf(nvRenovar, sizeof nvRenovar, "%s", r);
+      nvLerJwtL(nvAcesso);
+      nvAtiva = 1;
+      gravarNuvioL();
+      pthread_mutex_unlock(&tokTrava);
+      apagar(a, sizeof a);
+      apagar(r, sizeof r);
+      apagar(nvAnonTok, sizeof nvAnonTok);
+      nvCodigo[0] = nvUrl[0] = nvDeviceCode[0] = nvNonce[0] = nvErro[0] = 0;
+      nvEstado = NV_NUVIO_LIGADO;
+      nvConectouAgora = 1;
+      printf("[sessao] Conta Nuvio (Rastreamento) conectada com sucesso\n");
+    } else {
+      snprintf(nvErro, sizeof nvErro, "Não foi possível concluir a conexão com a Conta Nuvio (HTTP %d).", st);
+      nvEstado = NV_NUVIO_ERRO;
+    }
+    free(resp);
+  } else if (!strcmp(status, "expired") || !strcmp(status, "cancelled") || st == 410) {
+    snprintf(nvErro, sizeof nvErro, "O código expirou. Pressione OK para gerar um novo.");
+    nvEstado = NV_NUVIO_ERRO;
+    nvCodigo[0] = nvDeviceCode[0] = 0;
+  }
+
+  nvPassoPronto = 1;
+  return NULL;
+}
+
+int sessao_nuvio_disponivel(void) {
+  return nuvem_supabase_pronta();
+}
+
+int sessao_nuvio_ativa(void) {
+  int r;
+  pthread_mutex_lock(&tokTrava);
+  r = nvAtiva && nvAcesso[0] != 0;
+  pthread_mutex_unlock(&tokTrava);
+  return r;
+}
+
+int sessao_nuvio_usuario_copiar(char *dst, size_t n) {
+  int ok = 0;
+  if (!dst || !n) return 0;
+  dst[0] = 0;
+  pthread_mutex_lock(&tokTrava);
+  if (nvAtiva && nvSub[0]) {
+    snprintf(dst, n, "%s", nvSub);
+    ok = 1;
+  }
+  pthread_mutex_unlock(&tokTrava);
+  return ok;
+}
+
+NvNuvioEstado sessao_nuvio_estado(void) { return nvEstado; }
+const char   *sessao_nuvio_codigo(void) { return nvCodigo; }
+const char   *sessao_nuvio_url(void)    { return nvUrl; }
+const char   *sessao_nuvio_erro(void)   { return nvErro; }
+
+void sessao_nuvio_comecar(void) {
+  if (!nuvem_supabase_pronta()) {
+    snprintf(nvErro, sizeof nvErro, "API da Conta Nuvio não configurada neste pacote.");
+    nvEstado = NV_NUVIO_ERRO;
+    return;
+  }
+  if (nvEstado == NV_NUVIO_PEDINDO || nvEstado == NV_NUVIO_AGUARDANDO || nvEstado == NV_NUVIO_TROCANDO)
+    return;
+  nvErro[0] = nvCodigo[0] = nvUrl[0] = nvDeviceCode[0] = 0;
+  nvEstado = NV_NUVIO_PEDINDO;
+  nvComecouMs = 0;
+  nvProximoPoll = 0;
+  nvPollMs = POLL_MS;
+  nvSoltar(fioNuvioPedir);
+}
+
+void sessao_nuvio_cancelar(void) {
+  if (nvEstado == NV_NUVIO_PEDINDO || nvEstado == NV_NUVIO_AGUARDANDO ||
+      nvEstado == NV_NUVIO_TROCANDO || nvEstado == NV_NUVIO_ERRO) {
+    nvCodigo[0] = nvUrl[0] = nvDeviceCode[0] = nvErro[0] = 0;
+    apagar(nvAnonTok, sizeof nvAnonTok);
+    nvEstado = sessao_nuvio_ativa() ? NV_NUVIO_LIGADO : NV_NUVIO_PARADO;
+  }
+}
+
+void sessao_nuvio_desconectar(void) {
+  pthread_mutex_lock(&tokTrava);
+  limparNuvioL();
+  dados_apagar(ARQ_NUVIO_SYNC);
+  pthread_mutex_unlock(&tokTrava);
+  nvCodigo[0] = nvUrl[0] = nvDeviceCode[0] = nvNonce[0] = nvErro[0] = 0;
+  apagar(nvAnonTok, sizeof nvAnonTok);
+  nvEstado = NV_NUVIO_PARADO;
+  printf("[sessao] Conta Nuvio (Rastreamento) desconectada; conta BestCine preservada\n");
+}
+
+int sessao_nuvio_passo(unsigned agoraMs) {
+  int disparou = 0;
+  if (nvFioVivo && nvPassoPronto) { nvFioVivo = 0; nvPassoPronto = 0; }
+  if (nvConectouAgora) {
+    nvConectouAgora = 0;
+    disparou = 1;
+  }
+  if (nvFioVivo) return disparou;
+  if (nvEstado == NV_NUVIO_AGUARDANDO) {
+    if (!nvComecouMs) nvComecouMs = agoraMs ? agoraMs : 1u;
+    if (agoraMs - nvComecouMs > LOGIN_LIMITE_MS) {
+      snprintf(nvErro, sizeof nvErro, "O código expirou. Pressione OK para gerar um novo.");
+      nvEstado = NV_NUVIO_ERRO;
+      nvCodigo[0] = 0;
+      return disparou;
+    }
+    if (agoraMs >= nvProximoPoll) {
+      nvProximoPoll = agoraMs + nvPollMs;
+      nvSoltar(fioNuvioPoll);
+    }
+  }
+  return disparou;
 }

@@ -803,9 +803,24 @@ static char *pedir2(const char *metodo, const char *url, int segundos, const cha
   free(cabs);
 #endif
   if (status) *status = http;
-  // XHR sem status e sem corpo = nao houve resposta (rede, DNS, CORS): para a
-  // saude da rede e o "6" do curl. Qualquer status e transporte que funcionou.
-  if (avisoSaude) avisoSaude(corpoResp || http ? 0 : 6, url, 0);
+  // XHR sem status e sem corpo = nao houve resposta (rede, DNS, CORS).
+  // No Tizen WASM (.wgt), qualquer host sem cabecalho CORS devolve status 0 mesmo
+  // com internet normal; so conta como falha global se o navegador indicar offline
+  // ou se for um host principal sabidamente com CORS liberado.
+  if (avisoSaude) {
+    int okTransp = (corpoResp || http) ? 1 : 0;
+    if (okTransp) {
+      avisoSaude(0, url, 0);
+    } else {
+      int navOnLine = EM_ASM_INT({
+        return (typeof navigator !== 'undefined' && navigator.onLine === false) ? 0 : 1;
+      });
+      int hostCore = url && (strstr(url, "bestcine") || strstr(url, "github.io") ||
+                             strstr(url, "themoviedb.org") || strstr(url, "tmdb.org") ||
+                             strstr(url, "supabase.co"));
+      if (!navOnLine || hostCore) avisoSaude(6, url, 0);
+    }
+  }
   if (avisoHost) avisoHost(url, corpoResp || http ? 0 : 6, http, 0);
   if (http == 401 && aviso401) aviso401(url);
   negcache_nota(url, corpoResp || http ? 0 : 6, http, (long)time(NULL));
@@ -1325,6 +1340,7 @@ typedef struct {
 } BcDohEnt;
 #define BC_DOH_CACHE_N 64
 static BcDohEnt bcDohCache[BC_DOH_CACHE_N];
+static unsigned long bcDohPausaAteMs;
 static pthread_mutex_t bcDohTrava = PTHREAD_MUTEX_INITIALIZER;
 static pthread_key_t bcDohListaChave;
 static pthread_once_t bcDohListaUma = PTHREAD_ONCE_INIT;
@@ -1454,6 +1470,10 @@ static int bcDohResolver(const char *host, int modo, char *ipOut, size_t ipCap) 
   int i, livre = -1, velho = 0, ok = 0;
   ipOut[0] = 0;
   pthread_mutex_lock(&bcDohTrava);
+  if (bcDohPausaAteMs && agora < bcDohPausaAteMs) {
+    pthread_mutex_unlock(&bcDohTrava);
+    return 0;
+  }
   for (i = 0; i < BC_DOH_CACHE_N; i++) {
     if (bcDohCache[i].host[0] && bcDohCache[i].modo == modo &&
         !strcmp(bcDohCache[i].host, host) && agora < bcDohCache[i].expMs) {
@@ -1468,8 +1488,8 @@ static int bcDohResolver(const char *host, int modo, char *ipOut, size_t ipCap) 
   ok = bcDohConsultarIp(host, modo, ipOut, ipCap);
   // Fallback automatico entre Cloudflare (1.1.1.1) e Google (8.8.8.8):
   // se um deles falhar ou estiver bloqueado na rede/TV Box, tenta o outro;
-  // se ambos falharem, devolve 0 e o app cai automaticamente no DNS da TV
-  // (nunca trava em "Sem internet").
+  // se ambos falharem, ativa pausa global de 3 min e cai no DNS da TV sem
+  // desperdiçar 3 s em cada novo host (evita falso "Sem internet" no Tizen 4/5).
   if (!ok) {
     int alt = (modo == REDE_DNS_GOOGLE) ? REDE_DNS_CLOUDFLARE : REDE_DNS_GOOGLE;
     ok = bcDohConsultarIp(host, alt, ipOut, ipCap);
@@ -1477,6 +1497,8 @@ static int bcDohResolver(const char *host, int modo, char *ipOut, size_t ipCap) 
 
   agora = redeAgoraMs();
   pthread_mutex_lock(&bcDohTrava);
+  if (!ok) bcDohPausaAteMs = agora + 180000UL;
+  else bcDohPausaAteMs = 0;
   for (i = 0; i < BC_DOH_CACHE_N; i++) {
     if (bcDohCache[i].host[0] && bcDohCache[i].modo == modo &&
         !strcmp(bcDohCache[i].host, host)) { livre = i; break; }
@@ -1491,21 +1513,38 @@ static int bcDohResolver(const char *host, int modo, char *ipOut, size_t ipCap) 
   pthread_mutex_unlock(&bcDohTrava);
   return ok;
 }
+static void bcDohInvalidarUrl(const char *url) {
+  char host[128];
+  unsigned long ate;
+  int i;
+  if (!bcPrecisaDoh(url, host, sizeof host, NULL)) return;
+  ate = redeAgoraMs() + 120000UL;
+  pthread_mutex_lock(&bcDohTrava);
+  for (i = 0; i < BC_DOH_CACHE_N; i++) {
+    if (bcDohCache[i].host[0] && !strcmp(bcDohCache[i].host, host)) {
+      bcDohCache[i].expMs = ate;
+      bcDohCache[i].ip[0] = 0;
+    }
+  }
+  pthread_mutex_unlock(&bcDohTrava);
+}
 static void bcAplicarDoh(void *c, const char *url) {
   int modo = rede_dns_modo();
   char host[128], ip[48], ent[200];
   int porta = 443;
+  pthread_once(&bcDohListaUma, bcDohListaCriar);
   if (modo == REDE_DNS_SISTEMA || !bcPrecisaDoh(url, host, sizeof host, &porta)) {
+    void *antiga = pthread_getspecific(bcDohListaChave);
     curl_setopt_f(c, OPT_RESOLVE, (void *)NULL);
+    if (antiga) { pthread_setspecific(bcDohListaChave, NULL); if (slist_free) slist_free(antiga); }
     return;
   }
   // Motor universal JSON DoH + CURLOPT_RESOLVE (Cloudflare 1.1.1.1 <-> Google 8.8.8.8
   // -> fallback automatico para DNS do sistema): evita tanto o crash de CURLOPT_DOH_URL
-  // + dnsShare no Samsung Tizen 8/9 quanto o falso "Sem internet" em TV Boxes Android
+  // + dnsShare no Samsung Tizen 8/9 quanto o falso "Sem internet" em TVs/TV Boxes
   // quando 1.1.1.1 falha sem fallback.
   if (slist_append && slist_free && bcDohResolver(host, modo, ip, sizeof ip)) {
     void *antiga, *nova = NULL;
-    pthread_once(&bcDohListaUma, bcDohListaCriar);
     antiga = pthread_getspecific(bcDohListaChave);
     snprintf(ent, sizeof ent, "%s:%d:%s", host, porta, ip);
     nova = slist_append(nova, ent);
@@ -1515,7 +1554,9 @@ static void bcAplicarDoh(void *c, const char *url) {
       if (antiga) slist_free(antiga);
     }
   } else {
+    void *antiga = pthread_getspecific(bcDohListaChave);
     curl_setopt_f(c, OPT_RESOLVE, (void *)NULL);
+    if (antiga) { pthread_setspecific(bcDohListaChave, NULL); if (slist_free) slist_free(antiga); }
   }
 }
 
@@ -1626,7 +1667,23 @@ static int tmdbFallback(void *c, int r, const char *pedido) {
   free(alias);
   return r;
 }
-static int performTmdb(void *c, const char *url) { return tmdbFallback(c, curl_perform(c), url); }
+static int performTmdb(void *c, const char *url) {
+  int r = curl_perform(c);
+  // Se o pedido falhou na conexao/timeout usando IP vindo do DoH (OPT_RESOLVE),
+  // invalida o cache daquele host e tenta uma vez pelo DNS do sistema da TV.
+  if ((r == 6 || r == 7 || r == 28) && !redeCancelouLocal && curl_setopt_f) {
+    pthread_once(&bcDohListaUma, bcDohListaCriar);
+    void *antiga = pthread_getspecific(bcDohListaChave);
+    if (antiga) {
+      bcDohInvalidarUrl(url);
+      curl_setopt_f(c, OPT_RESOLVE, (void *)NULL);
+      pthread_setspecific(bcDohListaChave, NULL);
+      if (slist_free) slist_free(antiga);
+      r = curl_perform(c);
+    }
+  }
+  return tmdbFallback(c, r, url);
+}
 
 static int retrySegundos(const char *s, size_t n) {
   char b[128], *fim;
@@ -2704,7 +2761,21 @@ static char *rede_baixar_interno3(const char *url, int segundos, long *tam,
       if (curl_getinfo) curl_getinfo(c, INFO_NUM_CONNECTS, &novas);
       reusada = novas == 0; }
     gasto = redeAgoraMs() - inicio;
-    if (tentativa == 0 && r != 0 && valeRepetir(r, &vigia, b.n) &&
+    // Se a conexao falhou usando IP obtido via DoH (OPT_RESOLVE), pausa o DoH
+    // para este host por 2 min para a tentativa seguinte usar o DNS da TV.
+    { int dohFalhou = 0;
+      if (tentativa == 0 && (r == 6 || r == 7 || r == 28) && !redeCancelouLocal) {
+        pthread_once(&bcDohListaUma, bcDohListaCriar);
+        void *antiga = pthread_getspecific(bcDohListaChave);
+        if (antiga) {
+          bcDohInvalidarUrl(url);
+          curl_setopt_f(c, OPT_RESOLVE, (void *)NULL);
+          pthread_setspecific(bcDohListaChave, NULL);
+          if (slist_free) slist_free(antiga);
+          dohFalhou = 1;
+        }
+      }
+    if (tentativa == 0 && r != 0 && (dohFalhou || valeRepetir(r, &vigia, b.n)) &&
         gasto + 1000 < prazoMs) {
       char seg[120];
       printf("[rede] curl %d em %s (conexao %s, %ld bytes, %lu ms): de novo em conexao nova\n",
@@ -2719,7 +2790,7 @@ static char *rede_baixar_interno3(const char *url, int segundos, long *tam,
       b.p = NULL; b.n = b.cap = 0;
       if (etag && tamEtag) etag[0] = 0;
       continue;
-    }
+    } }
     r = tmdbFallback(c, r == 42 && vigia.parou ? 28 : r, url);
     break;
   }

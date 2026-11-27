@@ -3060,6 +3060,10 @@ static int lerManifesto(int iAddon, const char *base, Decl *saida, int max,
   if (!addons_manifesto_recebido(base, versao, descSessao(), corpo)) {
     free(corpo); return 0;
   }
+  // BestCine TV (Camada 1): ignora catalogos e busca de addons bloqueados (ex.: addons externos com stream).
+  if (sessao_bc_ativa() && ativo && !addons_tem_catalogo(iAddon)) {
+    free(corpo); return 0;
+  }
   // Chave da RAIZ: um manifesto tem "id" tambem dentro de catalogs[] e de
   // behaviorHints, e ha addon que escreve "catalogs" antes de "id" — a leitura
   // crua trazia o id de um CATALOGO como se fosse o do addon. Ver js_texto_raiz.
@@ -5275,6 +5279,8 @@ static void *montar(void *u) {
     // conteudo. Os alvos de BUSCA ja foram registrados dentro de lerManifesto e
     // nao passam por aqui: o catalogo continua buscavel, so deixa de fingir que
     // e fileira.
+    Decl *canaisFora = calloc(64, sizeof *canaisFora);
+    int nCanaisFora = 0;
     { int r2, w2 = 0, cortados = 0;
       for (r2 = 0; r2 < nDecl; r2++) {
         if (decls[r2].exigeParam) {
@@ -5284,8 +5290,14 @@ static void *montar(void *u) {
           continue;
         }
         if (ehCanal(decls[r2].tipo)) {
-          printf("[desc]   fora da home (canais ficam no Guia de TV): %s\n", decls[r2].titulo);
-          continue;
+          // Por padrao canais ficam no Guia de TV, mas se o usuario adicionar
+          // explicitamente na tela de Fileiras da Home, mantemos em decls[].
+          if (!fil_adicionada_na_tv(decls[r2].chave)) {
+            if (canaisFora && nCanaisFora < 64) canaisFora[nCanaisFora++] = decls[r2];
+            printf("[desc]   fora da home (canais ficam no Guia de TV ate serem adicionados): %s\n", decls[r2].titulo);
+            continue;
+          }
+          printf("[desc]   fileira de canais adicionada a Home pelo usuario: %s\n", decls[r2].titulo);
         }
         if (w2 != r2) decls[w2] = decls[r2];
         w2++;
@@ -5512,8 +5524,8 @@ static void *montar(void *u) {
     // linhas dele nao valem nada para a home de qualquer jeito.
     // ADDONS_MAX covers all 128 owners; a 16-entry snapshot falsely pruned
     // catalogs belonging to addons beyond the first 16 (B4).
-    { const char *ids[ADDONS_MAX + 1], *bases[ADDONS_MAX + 1];
-      int ativos[ADDONS_MAX + 1], q, semId = 0;
+    { const char *ids[ADDONS_MAX + 4], *bases[ADDONS_MAX + 4];
+      int ativos[ADDONS_MAX + 4], q, semId = 0;
       int perfilLista = addons_perfil_da_lista();
       AddonIdentidade *lista = calloc(ADDONS_MAX, sizeof *lista);
       int na = lista && addons_copiar_identidades
@@ -5525,7 +5537,15 @@ static void *montar(void *u) {
           ids[q] = lista[q].id; bases[q] = lista[q].base; ativos[q] = lista[q].ativo;
           if (ativos[q] && !ids[q][0]) semId++;
         }
-        if (bcQuantosCatalogosAtivos() > 0 && na < ADDONS_MAX + 1) {
+        // Protege os catalogos nativos embutidos (Filmes Populares / Series Populares)
+        // para que fil_podar_catalogos_de nunca apague a ordem salva pelo usuario no boot.
+        if (na < ADDONS_MAX + 4) {
+          ids[na] = "bestcine_builtin_cinemeta";
+          bases[na] = "https://v3-cinemeta.strem.io";
+          ativos[na] = 1;
+          na++;
+        }
+        if (bcQuantosCatalogosAtivos() > 0 && na < ADDONS_MAX + 4) {
           ids[na] = BC_TMDB_CAT_ADDON;
           bases[na] = BC_TMDB_CAT_BASE;
           ativos[na] = 1;
@@ -5546,11 +5566,13 @@ static void *montar(void *u) {
         // abaixo. Com o vetor de candidatos cheio (DECL_MAX) a lista pode estar
         // truncada, e dai "nao declarado" nao quer dizer nada: nao marca.
         if (nDecl > 0 && nDecl < DECL_MAX) {
-          const char **dk = malloc(sizeof *dk * (size_t)nDecl);
+          int totalDk = nDecl + nCanaisFora;
+          const char **dk = malloc(sizeof *dk * (size_t)totalDk);
           if (dk) {
             int q2;
             for (q2 = 0; q2 < nDecl; q2++) dk[q2] = decls[q2].chave;
-            fil_marcar_declaradas(dk, nDecl, perfilLista);
+            for (q2 = 0; q2 < nCanaisFora; q2++) dk[nDecl + q2] = canaisFora[q2].chave;
+            fil_marcar_declaradas(dk, totalDk, perfilLista);
             free(dk);
           }
         }
@@ -5561,6 +5583,16 @@ static void *montar(void *u) {
       }
       free(lista);
     }
+    if (canaisFora && nCanaisFora > 0) {
+      int q;
+      for (q = 0; q < nCanaisFora; q++)
+        fil_registrar_se_couber_de(&passadaVolta, canaisFora[q].chave, canaisFora[q].titulo,
+                                   canaisFora[q].nomeAddon, canaisFora[q].tipo);
+      fil_gravar_registro();
+    }
+    free(canaisFora);
+    canaisFora = NULL;
+    nCanaisFora = 0;
 
     // ALVOS DE BUSCA. Independem da ordem/filtro das FILEIRAS da home: um
     // catalogo pode estar desativado na home e ainda assim ser bom para

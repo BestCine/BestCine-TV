@@ -277,6 +277,7 @@ static const char *ajVisualIcone(int op) {
     case AJ_PERFIL_INFANTIL: return "aj_shield-check";
     case AJ_PERFIL_EDITAR: return "aj_user-round";
     case AJ_SAIR: return "aj_log-out";
+    case AJ_NUVIO_CONTA: return "aj_cloud";
     case AJ_TRAKT: return "aj_plug";
     case AJ_SIMKL: return "aj_plug";
     case AJ_SALVOS_DEST: return "aj_plug";

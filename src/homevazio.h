@@ -4,8 +4,9 @@
 #ifndef NV_HOMEVAZIO_H
 #define NV_HOMEVAZIO_H
 #include <SDL2/SDL.h>
+#include "nuvem.h"
 
-#define HOMEVAZIO_URL "https://example.invalid"
+#define HOMEVAZIO_URL nuvem_bestcine_url()
 
 // Sem addons ou sem fileiras e sem addon de catalogo, depois do sync.
 int  homevazio_ativo(int fileiras);

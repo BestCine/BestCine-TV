@@ -745,6 +745,7 @@ typedef enum {
   AJ_BC_TEMPO_EPICOS,
   AJ_BC_LANCAMENTOS,      // BestCine TV: Filmes & Series Lancamentos (TMDB), ligado por padrao
   AJ_BC_SELOS_NATIVOS,    // BestCine TV: Selos nativos nos posteres 2:3, ligado por padrao
+  AJ_NUVIO_CONTA,         // Conta Nuvio opcional em Rastreamento (sem sync de addons)
   AJ_N
 } OpcaoId;
 static const char *V_BC_DNS[] = { "Cloudflare (1.1.1.1)", "Google (8.8.8.8)", "DNS do sistema" };
@@ -1905,6 +1906,7 @@ static const Opcao OPCOES[AJ_N] = {
   ESC("Épicos & Maratonas (+2h30)", V_LIGA, 2),
   ESC("Filmes & Séries • Lançamentos", V_LIGA, 2),
   ESC("Selos nativos nos pôsteres", V_LIGA, 2),
+  ACAO("Conta Nuvio"),
 };
 
 // Nome de cada opcao no arquivo. O formato era POSICIONAL — uma linha por
@@ -2258,6 +2260,7 @@ static const char *CHAVE[] = {
   "bestcineTempoEpicosLocal",
   "bestcineLancamentosLocal",
   "bestcineSelosNativosLocal",
+  "-nuvioConta",
 };
 // QUATRO VETORES PARALELOS indexados pelo mesmo enum AJ_*: OPCOES, CHAVE,
 // valor e as secoes. OPCOES ja e declarado [AJ_N], e `valor` aceita inicializacao
@@ -3218,7 +3221,7 @@ static int ajOpcaoDisponivel(int op) {
                    op == AJ_FONTE_PLUGINS_PERM || op == AJ_FONTE_REGEX_PADRAO ||
                    op == AJ_FONTE_REGEX_MODELO || op == AJ_ENQUETES ||
                    op == AJ_PERFIL_PESQ || op == AJ_PERFIL_EDITAR || op == AJ_PERFIL_INFANTIL ||
-                   op == AJ_TRAKT || op == AJ_SIMKL || op == AJ_DISCORD || op == AJ_SAIR)) return 0;
+                   op == AJ_NUVIO_CONTA || op == AJ_TRAKT || op == AJ_SIMKL || op == AJ_DISCORD || op == AJ_SAIR)) return 0;
   if (op == AJ_AMPLIAR_UI)
     return painel4k() && !telefoneui_ativo();
   if (op == AJ_ARTE_TOM) return valor[AJ_TEMA] == AJ_TEMA_DINAMICA;
@@ -7485,6 +7488,18 @@ static const char *textoLeitura(int op) {
       default:           return sessao_logada() ? i18n("aguardando") : i18n("sem conta");
     }
   }
+  if (op == AJ_NUVIO_CONTA) {
+    if (!sessao_nuvio_disponivel()) return i18n("indisponível nesta versão");
+    if (sessao_nuvio_ativa()) return i18n("Sair da conta");
+    switch (sessao_nuvio_estado()) {
+      case NV_NUVIO_LIGADO:     return i18n("Sair da conta");
+      case NV_NUVIO_PEDINDO:    return i18n("preparando…");
+      case NV_NUVIO_AGUARDANDO: return i18n("aguardando");
+      case NV_NUVIO_TROCANDO:   return i18n("conectando…");
+      case NV_NUVIO_ERRO:       return i18n("falhou");
+      default:                  return i18n("conectar");
+    }
+  }
   if (op == AJ_TRAKT) {
     if (traktauth_aguardando()) return traktauth_erro();
     if (trakt_aguardando()) return i18n("Não foi possível agora. Tente novamente.");
@@ -8302,6 +8317,7 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_SYNC: return "Estado da última sincronização com o BestCine. Pressione OK para atualizar os catálogos agora.";
     case AJ_ADDONS: return "Abre a lista de addons da sua conta, para ligar e desligar cada um nesta TV.";
     case AJ_PLUGINS: return "Extensões em JavaScript dos repositórios de plugins, como mais uma fonte na lista, ao lado dos add-ons. Os repositórios vêm da sua conta. Desligado por padrão.";
+    case AJ_NUVIO_CONTA: return "Conecta sua Conta Nuvio para sincronizar Continuar assistindo, Assistidos, Biblioteca e receber addons externos (catálogos, legendas e metadados; streams bloqueados).";
     case AJ_TRAKT: return "Conecta a sua conta do Trakt para marcar o que assistiu e usar a sua lista.";
     case AJ_SIMKL: return "Conecta a sua conta do Simkl, uma alternativa ao Trakt para acompanhar séries.";
     case AJ_DISCORD: return "Mostra no seu perfil do Discord o que você está assistindo, com o cartaz e o tempo. Só sai alguma coisa enquanto um vídeo toca neste perfil.";
@@ -8473,6 +8489,10 @@ static const char *efeitoOpcao(int op) {
       return "Pede o OK duas vezes. Para voltar é preciso entrar de novo pelo QR.";
     case AJ_SALVOS_DEST:
       return "Escolhe de onde vem a Biblioteca e para onde o + também publica. A lista desta TV recebe o título em todos os casos.";
+    case AJ_NUVIO_CONTA:
+      return sessao_nuvio_ativa()
+        ? i18n("Conta Nuvio conectada (histórico, biblioteca e addons externos; streams bloqueados). Pressione OK para desconectar.")
+        : i18n("Conecta sua Conta Nuvio para sincronizar histórico, biblioteca e addons externos entre PC, celular e TV.");
     case AJ_TRAKT: case AJ_SIMKL:
       return (op == AJ_TRAKT ? traktauth_estado() == TRA_LIGADO : simklauth_estado() == SMK_LIGADO)
         ? "conectado — OK desconecta"
@@ -9983,17 +10003,21 @@ static void eventoTela(const SDL_Event *e) {
     int smkAtivo = (sa == SMK_PEDINDO || sa == SMK_AGUARDANDO || sa == SMK_ERRO);
     DisEstado da = discord_estado();
     int disAtivo = (da == DIS_PEDINDO || da == DIS_AGUARDANDO || da == DIS_ERRO);
-    if (traAtivo || smkAtivo || disAtivo) {
+    NvNuvioEstado nvs = sessao_nuvio_estado();
+    int nvAtivo = (nvs == NV_NUVIO_PEDINDO || nvs == NV_NUVIO_AGUARDANDO || nvs == NV_NUVIO_TROCANDO || nvs == NV_NUVIO_ERRO);
+    if (nvAtivo || traAtivo || smkAtivo || disAtivo) {
       if (k == SDLK_ESCAPE || k == SDLK_AC_BACK || k == SDLK_BACKSPACE) {
-        if (traAtivo) traktauth_cancelar();
+        if (nvAtivo) sessao_nuvio_cancelar();
+        else if (traAtivo) traktauth_cancelar();
         else if (smkAtivo) simklauth_cancelar();
         else discord_cancelar();
       } else if (k == SDLK_RETURN || k == SDLK_KP_ENTER) {
-        if (disAtivo && da == DIS_ERRO) discord_comecar();
+        if (nvAtivo && nvs == NV_NUVIO_ERRO) sessao_nuvio_comecar();
+        else if (disAtivo && da == DIS_ERRO) discord_comecar();
         // OK so refaz o pedido quando deu erro; com o codigo na tela ele nao
         // faz nada de proposito, para nao trocar o codigo que a pessoa acabou
         // de digitar no celular.
-        if (traAtivo && ta == TRA_ERRO) traktauth_comecar();
+        else if (traAtivo && ta == TRA_ERRO) traktauth_comecar();
         else if (smkAtivo && sa == SMK_ERRO) simklauth_comecar();
       }
       return;
@@ -10232,6 +10256,11 @@ static void eventoTela(const SDL_Event *e) {
       return;
     }
     if (debTesteServico(focoOp) >= 0) { adTesteIniciar(debTesteServico(focoOp)); return; }
+    if (focoOp == AJ_NUVIO_CONTA) {
+      if (sessao_nuvio_ativa()) { sessao_nuvio_desconectar(); sync_iniciar(); }
+      else sessao_nuvio_comecar();
+      return;
+    }
     if (focoOp == AJ_TRAKT) {
       if (traktauth_estado() == TRA_LIGADO || (traktauth_estado() == TRA_PARADO && trakt_ativo())) { traktauth_desconectar(); desc_repetir(); }
       else traktauth_comecar();
@@ -11053,7 +11082,7 @@ static AjPreview familiaPreviaOpcao(int op) {
     case AJ_PERFIL_ATIVO: case AJ_SYNC: case AJ_BC_CONTA: case AJ_BC_DNS: case AJ_SAIR:
     case AJ_PERFIL_PESQ: case AJ_PERFIL_EDITAR: case AJ_PERFIL_INFANTIL: case AJ_ADDONS_PRINCIPAL: case AJ_PROVEDORES_ESCOPO: case AJ_ENQUETES:
       return AJPV_CONTA;
-    case AJ_SALVOS_DEST: case AJ_TRAKT: case AJ_SIMKL: case AJ_DISCORD: case AJ_HIST_CONTA: case AJ_SOCIAL:
+    case AJ_NUVIO_CONTA: case AJ_SALVOS_DEST: case AJ_TRAKT: case AJ_SIMKL: case AJ_DISCORD: case AJ_HIST_CONTA: case AJ_SOCIAL:
       return AJPV_RASTREIO;
     case AJ_VERSAO_I: case AJ_ATUALIZAR: case AJ_ENVIAR_LOG: case AJ_GUIA: case AJ_NOVIDADES20: case AJ_DICASCONTROLE: case AJ_APOIAR:
     case AJ_ENVIO_AUTO: case AJ_VER_REGISTRO: case AJ_LOG_REDE:
@@ -11159,10 +11188,14 @@ static void ajDesenharTudo(Uint32 agora) {
   // da tela.
   { TraEstado ta = traktauth_estado();
     SmkEstado sa = simklauth_estado();
+    NvNuvioEstado nvs = sessao_nuvio_estado();
 #ifdef AJUSTES_TESTE
     if (ajVinculoTeste) desenhaVinculo("Trakt", "8F3K2QPA", "https://trakt.tv/activate", NULL, 1); else
 #endif
-    if (!traktauth_aguardando() && (ta == TRA_PEDINDO || ta == TRA_AGUARDANDO || ta == TRA_ERRO))
+    if (nvs == NV_NUVIO_PEDINDO || nvs == NV_NUVIO_AGUARDANDO || nvs == NV_NUVIO_TROCANDO || nvs == NV_NUVIO_ERRO)
+      desenhaVinculo("Conta Nuvio", sessao_nuvio_codigo(), sessao_nuvio_url(),
+                     sessao_nuvio_erro(), nvs == NV_NUVIO_AGUARDANDO);
+    else if (!traktauth_aguardando() && (ta == TRA_PEDINDO || ta == TRA_AGUARDANDO || ta == TRA_ERRO))
       desenhaVinculo("Trakt", traktauth_codigo(), traktauth_url(),
                      traktauth_erro(), ta == TRA_AGUARDANDO);
     else if (sa == SMK_PEDINDO || sa == SMK_AGUARDANDO || sa == SMK_ERRO)
@@ -11184,7 +11217,9 @@ int ajustes_edicao_ativa(void) { return uxEditor != 0; }
 int ajustes_relogio_cabe(void) {
   TraEstado ta = traktauth_estado();
   SmkEstado sa = simklauth_estado();
+  NvNuvioEstado nvs = sessao_nuvio_estado();
   if (teclado_aberto() || (ajModalAberto() && !filAberta)) return 0;
+  if (nvs == NV_NUVIO_PEDINDO || nvs == NV_NUVIO_AGUARDANDO || nvs == NV_NUVIO_TROCANDO || nvs == NV_NUVIO_ERRO) return 0;
   if (!traktauth_aguardando() && (ta == TRA_PEDINDO || ta == TRA_AGUARDANDO || ta == TRA_ERRO)) return 0;
   if (sa == SMK_PEDINDO || sa == SMK_AGUARDANDO || sa == SMK_ERRO) return 0;
   return 1;

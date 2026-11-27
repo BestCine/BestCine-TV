@@ -403,3 +403,4 @@
   0, /* BestCine Tempo: Epicos & Maratonas (+2h30): Ligado */
   0, /* BestCine Filmes & Series Lancamentos: Ligado (V_LIGA 0) */
   0, /* BestCine Selos nativos nos posteres: Ligado (V_LIGA 0) */
+  0, /* Conta Nuvio opcional em Rastreamento: acao */

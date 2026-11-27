@@ -525,29 +525,30 @@ static float ajBarrasQualidade(float x, float y, float w) {
   }
   return 300;
 }
-// O cartao do servico (Trakt/Simkl) com o que o vinculo alimenta no app.
+// O cartao do servico (Conta Nuvio/Trakt/Simkl) com o que o vinculo alimenta no app.
 static float ajPreviaServico(int op, float x, float y, float w) {
-  int trakt = op == AJ_TRAKT, lig2 = ajEstadoLigado(op), i;
+  int nuvio = op == AJ_NUVIO_CONTA, trakt = op == AJ_TRAKT, lig2 = ajEstadoLigado(op), i;
   float ix = x + 26, iw = w - 52, y0 = y, ar, ag, ab;
   static const char *const IC[4] = { "aj_eye", "aj_bookmark", "aj_rotate-ccw-clock", "aj_star" };
   static const char *const TX[4] = { "Marcar assistidos", "Salvos (botão +)", "Continuar assistindo", "Nota nos créditos" };
+  static const char *const TXN[4] = { "Marcar assistidos", "Salvos (botão +)", "Continuar assistindo", "Addons externos" };
   ajustes_acento(&ar, &ag, &ab);
   ajNeutro((GfxRect){ x, y, w, 26 + 64 + 24 + 18 + 12 + 56 * 2 + 10 + 26 }, 22, 0.04f, 0.106f, 0.110f, 0.129f, 1);
   y += 26;
   gfx_cor((GfxRect){ ix, y, 64, 64 }, 20.0f / 64, 1, 1, 1, 0.1f);
-  { TxtLinha l = ajTxt(TXT_AJ_TIT28, trakt ? "t" : "s");
+  { TxtLinha l = ajTxt(TXT_AJ_TIT28, nuvio ? "N" : trakt ? "t" : "s");
     txt_desenhar(l, ix + (64 - l.w) * 0.5f, y + (64 - l.h) * 0.5f); }
-  { TxtLinha n = ajTxt(TXT_AJ_NOME, trakt ? "Trakt" : "Simkl"), e = ajTxt(TXT_ILHA_GENERO, textoLeitura(op));
+  { TxtLinha n = ajTxt(TXT_AJ_NOME, nuvio ? "Conta Nuvio" : trakt ? "Trakt" : "Simkl"), e = ajTxt(TXT_ILHA_GENERO, textoLeitura(op));
     float ty = y + 32 - (n.h + 4 + e.h) * 0.5f;
     txt_desenhar(n, ix + 80, ty);
     if (lig2) gfx_cor((GfxRect){ ix + 80, ty + n.h + 4 + (e.h - 8) * 0.5f, 8, 8 }, 0.5f, ar, ag, ab, 1);
     txt_desenhar_alpha(e, ix + 80 + (lig2 ? 16 : 0), ty + n.h + 4, 0.6f); }
   y += 64 + 24;
-  ajKicker(trakt ? "O que usa o Trakt" : "O que usa o Simkl", ix, y, 1);
+  ajKicker(nuvio ? "O que sincroniza na Conta Nuvio" : trakt ? "O que usa o Trakt" : "O que usa o Simkl", ix, y, 1);
   y += 18 + 12;
   for (i = 0; i < 4; i++) {
     float tw = (iw - 10) * 0.5f, tx = ix + (i % 2) * (tw + 10), ty = y + (i / 2) * 66;
-    TxtLinha l = ajTxtC(TXT_ILHA_GENERO, TX[i], tw - 60);
+    TxtLinha l = ajTxtC(TXT_ILHA_GENERO, nuvio ? TXN[i] : TX[i], tw - 60);
     ajNeutro((GfxRect){ tx, ty, tw, 56 }, 18, 0.05f, 0.141f, 0.149f, 0.173f, 1);
     ajIcone(IC[i], tx + 16, ty + 17, 22, 0.8f);
     txt_desenhar_alpha(l, tx + 16 + 22 + 12, ty + (56 - l.h) * 0.5f, 0.8f);
@@ -795,7 +796,7 @@ static float ajPreviaFonte(int op, float x, float y, float w) {
 static float ajPreviaCarta(int op, float x, float y, float w) {
   switch (op) {
     case AJ_ICONE_APP: return ajPreviaIconeApp(x, y, w);
-    case AJ_TRAKT: case AJ_SIMKL: return ajPreviaServico(op, x, y, w);
+    case AJ_NUVIO_CONTA: case AJ_TRAKT: case AJ_SIMKL: return ajPreviaServico(op, x, y, w);
     case AJ_ENVIAR_LOG: case AJ_VER_REGISTRO: case AJ_ENVIO_AUTO: case AJ_LOG_REDE:
       registro_pacote(x, y, w, 300, 9, i18n("últimos 200 KB"), 1); return 300;
     case AJ_CW_LIGADO: case AJ_CW_OK: case AJ_CW_ESTILO: case AJ_CW_THUMB: case AJ_CW_BLUR_PROX:

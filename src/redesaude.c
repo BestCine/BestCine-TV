@@ -96,8 +96,11 @@ void rede_saude_nota_desde(int codigo, const char *url, unsigned primeiraMs) {
   switch (codigo) {
     case 0: ok = 1; break;
     case REDE_CURL_DNS_LENTO: ok = -1; break;
-    case 6: case 7: case 28: case 35: case 52: case 55: case 56: ok = 0; break;
-    default: return;   // cancelado (42), teto (23), uso errado: nao diz nada da rede
+    // 35 (TLS handshake — comum em Tizen 4/5 com OpenSSL 1.0.2 em hosts TLS 1.3)
+    // e 52 (resposta vazia apos TCP conectar) provam que o aparelho tem rede;
+    // so erros reais de DNS/TCP/timeout contam para "Sem internet".
+    case 6: case 7: case 28: case 55: case 56: ok = 0; break;
+    default: return;   // cancelado (42), teto (23), TLS (35), uso errado: nao diz nada da rede
   }
   h = hostHash(url);
   if (!h) return;

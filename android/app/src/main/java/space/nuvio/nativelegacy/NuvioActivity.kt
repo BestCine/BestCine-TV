@@ -50,6 +50,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.RelativeLayout
+import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -416,6 +417,14 @@ class NuvioActivity : SDLActivity() {
         entregarDeepLink(intent)
     }
 
+    private fun mostrarAvisoInstalacao(texto: String) {
+        runOnUiThread {
+            try {
+                Toast.makeText(this, texto, Toast.LENGTH_LONG).show()
+            } catch (_: Exception) {}
+        }
+    }
+
     private fun tratarRetornoInstalacaoApk(intent: Intent?): Boolean {
         if (intent?.action != ACTION_BC_INSTALL_RESULT) return false
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
@@ -429,17 +438,50 @@ class NuvioActivity : SDLActivity() {
                     } catch (e: Exception) {
                         Log.w("nuvio", "[atualizacao] falha ao abrir confirmacao PackageInstaller: ${e.message}")
                         instalando = false
+                        mostrarAvisoInstalacao("Não foi possível abrir o instalador do sistema.")
                     }
+                } else {
+                    instalando = false
                 }
             }
             PackageInstaller.STATUS_SUCCESS -> {
                 Log.i("nuvio", "[atualizacao] APK instalado com sucesso via PackageInstaller")
                 instalando = false
+                try {
+                    ApkCache.prune(File(cacheDir, "regenerable/atualizacao"), installedVersion(), null, ::apkVersion)
+                } catch (_: Exception) {}
             }
             else -> {
                 val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: ""
                 Log.w("nuvio", "[atualizacao] PackageInstaller status=$status msg=$msg")
                 instalando = false
+                try {
+                    val f = despedida()
+                    if (f.exists() && f.readText().startsWith("fim")) f.delete()
+                } catch (_: Exception) {}
+                val aviso = when (status) {
+                    PackageInstaller.STATUS_FAILURE_STORAGE ->
+                        "Sem espaço livre na TV Box para atualizar. Libere espaço em Configurações > Armazenamento e tente novamente."
+                    PackageInstaller.STATUS_FAILURE_CONFLICT ->
+                        "Conflito de assinatura com a versão instalada. Desinstale o BestCine TV antigo e instale novamente."
+                    PackageInstaller.STATUS_FAILURE_BLOCKED ->
+                        "Instalação bloqueada pelo sistema ou Play Protect. Verifique as permissões de instalação."
+                    PackageInstaller.STATUS_FAILURE_INCOMPATIBLE ->
+                        "Pacote incompatível com esta versão do Android."
+                    PackageInstaller.STATUS_FAILURE_INVALID -> {
+                        try {
+                            File(cacheDir, "regenerable/atualizacao").listFiles()
+                                ?.filter { it.name.endsWith(".apk") }
+                                ?.forEach { it.delete() }
+                        } catch (_: Exception) {}
+                        "Arquivo de atualização inválido ou corrompido. Tente baixar novamente."
+                    }
+                    PackageInstaller.STATUS_FAILURE_ABORTED ->
+                        "Atualização cancelada."
+                    else ->
+                        "Não foi possível instalar a atualização (código $status). Verifique o espaço livre na TV Box."
+                }
+                mostrarAvisoInstalacao(aviso)
             }
         }
         return true
@@ -651,7 +693,112 @@ class NuvioActivity : SDLActivity() {
 
     @Volatile private var instalando = false
     @Volatile private var apkPendenteCaminho: String? = null
+    @Volatile private var voltouDaPermissao = false
     private val ACTION_BC_INSTALL_RESULT = "space.nuvio.nativelegacy.BC_INSTALL_RESULT"
+
+    private fun arqPendenteApk() = File(File(cacheDir, "regenerable/atualizacao").apply { mkdirs() }, ".pendente")
+    private fun arqPermPedida() = File(File(cacheDir, "regenerable/atualizacao").apply { mkdirs() }, ".perm_pedida")
+
+    private fun salvarApkPendente(caminho: String) {
+        apkPendenteCaminho = caminho
+        try {
+            arqPendenteApk().writeText("${System.currentTimeMillis()}\n$caminho\n")
+        } catch (_: Exception) {}
+    }
+
+    private fun lerApkPendente(): String? {
+        apkPendenteCaminho?.takeIf { File(it).isFile }?.let { return it }
+        return try {
+            val f = arqPendenteApk()
+            if (!f.isFile) return null
+            val linhas = f.readLines()
+            val ts = linhas.firstOrNull()?.toLongOrNull() ?: 0L
+            val path = linhas.getOrNull(1)?.trim() ?: ""
+            // Valido por 10 min (cobre reinicio de processo do Android TV 11+ ao ligar a permissao)
+            if (System.currentTimeMillis() - ts in 0..(10 * 60 * 1000L) && path.isNotEmpty() && File(path).isFile) {
+                path
+            } else {
+                f.delete()
+                null
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private fun limparApkPendente() {
+        apkPendenteCaminho = null
+        voltouDaPermissao = false
+        try { arqPendenteApk().delete() } catch (_: Exception) {}
+    }
+
+    private fun marcarPermissaoPedida() {
+        voltouDaPermissao = true
+        try { arqPermPedida().writeText(System.currentTimeMillis().toString()) } catch (_: Exception) {}
+    }
+
+    private fun limparPermissaoPedida() {
+        voltouDaPermissao = false
+        try { arqPermPedida().delete() } catch (_: Exception) {}
+    }
+
+    private fun permissaoPedidaRecentemente(): Boolean = try {
+        val f = arqPermPedida()
+        if (!f.isFile) false
+        else {
+            val ts = f.readText().trim().toLongOrNull() ?: 0L
+            val recente = System.currentTimeMillis() - ts in 0..(10 * 60 * 1000L)
+            if (!recente) f.delete()
+            recente
+        }
+    } catch (_: Exception) { false }
+
+    private fun executarNaUiSincrono(acao: () -> Boolean): Boolean {
+        if (Looper.myLooper() == Looper.getMainLooper()) return acao()
+        val done = CountDownLatch(1)
+        var ok = false
+        runOnUiThread {
+            try { ok = acao() } finally { done.countDown() }
+        }
+        try { done.await(3, TimeUnit.SECONDS) } catch (_: Exception) {}
+        return ok
+    }
+
+    private fun abrirTelaPermissaoInstalacao(): Boolean = executarNaUiSincrono {
+        try {
+            val intentPacote = Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:$packageName")
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (intentPacote.resolveActivity(packageManager) != null) {
+                startActivity(intentPacote)
+                true
+            } else {
+                // Fallback para TV Boxes onde a URI package: nao resolve
+                val intentGeral = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (intentGeral.resolveActivity(packageManager) != null) {
+                    startActivity(intentGeral)
+                    true
+                } else false
+            }
+        } catch (e: Exception) {
+            Log.w("nuvio", "[atualizacao] falha ao abrir ACTION_MANAGE_UNKNOWN_APP_SOURCES: ${e.message}")
+            false
+        }
+    }
+
+    private fun abrirInstaladorActionView(arq: File): Boolean = executarNaUiSincrono {
+        try {
+            val uri = FileProvider.getUriForFile(this, "$packageName.atualizacao", arq)
+            val intent = Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            true
+        } catch (e: Exception) {
+            Log.w("nuvio", "[atualizacao] fallback ACTION_VIEW falhou: ${e.message}")
+            false
+        }
+    }
 
     @Suppress("DEPRECATION")
     private fun apkVersion(file: File): Long? = try {
@@ -682,26 +829,39 @@ class NuvioActivity : SDLActivity() {
         return try {
             val arq = File(caminho)
             if (!arq.isFile) return 0
-            if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
-                apkPendenteCaminho = caminho
-                startActivity(
-                    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-                return 2
+            val podeInstalar = Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()
+            if (!podeInstalar) {
+                // Anti-loop Android TV: se ja abrimos a tela de permissao recentemente
+                // e a TV Box ainda reporta canRequestPackageInstalls()==false, nao entra em loop —
+                // entrega direto ao instalador nativo do sistema via ACTION_VIEW.
+                if (!permissaoPedidaRecentemente()) {
+                    salvarApkPendente(caminho)
+                    marcarPermissaoPedida()
+                    if (abrirTelaPermissaoInstalacao()) {
+                        return 2
+                    }
+                    // Se a TV Box nao tiver tela ACTION_MANAGE_UNKNOWN_APP_SOURCES, tenta instalar direto
+                    limparPermissaoPedida()
+                }
+                limparApkPendente()
+                instalando = true
+                if (abrirInstaladorActionView(arq)) {
+                    return 1
+                }
+                instalando = false
+                return 0
             }
-            apkPendenteCaminho = null
+            limparApkPendente()
+            limparPermissaoPedida()
             instalando = true
             if (instalarViaPackageInstaller(arq)) {
                 return 1
             }
-            val uri = FileProvider.getUriForFile(this, "$packageName.atualizacao", arq)
-            startActivity(
-                Intent(Intent.ACTION_VIEW)
-                    .setDataAndType(uri, "application/vnd.android.package-archive")
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-            1
+            if (abrirInstaladorActionView(arq)) {
+                return 1
+            }
+            instalando = false
+            0
         } catch (e: Exception) {
             instalando = false
             0
@@ -709,13 +869,23 @@ class NuvioActivity : SDLActivity() {
     }
 
     private fun instalarViaPackageInstaller(arq: File): Boolean {
+        val pi = packageManager.packageInstaller
+        // Abandona sessoes orfas de tentativas anteriores para nao desperdiçar espaco
+        // em /data/app em TV Boxes com 8 GB de armazenamento.
+        try {
+            for (info in pi.mySessions) {
+                try { pi.abandonSession(info.sessionId) } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
+        var sessionId = -1
         return try {
-            val pi = packageManager.packageInstaller
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            params.setSize(arq.length())
+            params.setAppPackageName(packageName)
             if (Build.VERSION.SDK_INT >= 31) {
                 params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
             }
-            val sessionId = pi.createSession(params)
+            sessionId = pi.createSession(params)
             val session = pi.openSession(sessionId)
             session.use { s ->
                 arq.inputStream().use { input ->
@@ -735,6 +905,9 @@ class NuvioActivity : SDLActivity() {
             }
             true
         } catch (e: Exception) {
+            if (sessionId >= 0) {
+                try { pi.abandonSession(sessionId) } catch (_: Exception) {}
+            }
             Log.w("nuvio", "[atualizacao] PackageInstaller falhou, tentando fallback ACTION_VIEW: ${e.message}")
             false
         }
@@ -910,10 +1083,22 @@ class NuvioActivity : SDLActivity() {
         telaCheiaTouch()
         atualizarAcessibilidade()
         vigia?.frente(true)
-        val pendente = apkPendenteCaminho
-        if (pendente != null && (Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls())) {
-            apkPendenteCaminho = null
-            Thread { instalarApk(pendente) }.start()
+        val pendente = lerApkPendente()
+        if (pendente != null) {
+            val podeInstalar = Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()
+            if (podeInstalar) {
+                limparApkPendente()
+                limparPermissaoPedida()
+                Thread { instalarApk(pendente) }.start()
+            } else if (voltouDaPermissao) {
+                // Usuario voltou da tela de permissao, mas a ROM Android TV ainda reporta false:
+                // tenta abrir o instalador do sistema 1 vez diretamente sem entrar em loop de permissao.
+                limparApkPendente()
+                Thread {
+                    instalando = true
+                    if (!abrirInstaladorActionView(File(pendente))) instalando = false
+                }.start()
+            }
         }
     }
 

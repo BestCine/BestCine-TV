@@ -449,6 +449,18 @@ static void baseNormalizada(const char *url, char *dst, size_t tam) {
   nv_addon_base(url, dst, tam);
 }
 
+// Em modo BestCine TV, apenas o addon oficial do BestCine pode fornecer streams.
+static int ehAddonBestCineOficial(const char *base) {
+  char bcUrl[512], bcBase[512];
+  if (!base || !*base) return 0;
+  if (strstr(base, "/bc_") != NULL) return 1;
+  if (sessao_bc_manifest_url(bcUrl, sizeof bcUrl)) {
+    baseNormalizada(bcUrl, bcBase, sizeof bcBase);
+    if (bcBase[0] && !strcmp(base, bcBase)) return 1;
+  }
+  return 0;
+}
+
 // O MESMO ADDON JA ESTA entre addon[0..ate)? (B4) A conta, a copia salva e o
 // addons.txt podiam trazer o addon repetido em variantes de URL, e cada copia
 // virava uma linha da lista, um manifesto, uma consulta. Fica a primeira.
@@ -613,7 +625,7 @@ static int definirListaSemTrava(const AddonRemoto *nova, int n) {
     // efeito de legenda=0 era pior do que uma consulta a mais: buscarLegendas
     // pula quem nao declara legenda, entao numa conta sincronizada o
     // OpenSubtitles nunca era consultado e nao havia legenda nenhuma.
-    addon[aceitos].fonte = 1;
+    addon[aceitos].fonte = (sessao_bc_ativa() && !ehAddonBestCineOficial(addon[aceitos].base)) ? 0 : 1;
     addon[aceitos].catalogo = 1;
     addon[aceitos].legenda = 1;
     addon[aceitos].sondado = 0;
@@ -2145,6 +2157,9 @@ static void capacidadesDoManifesto(int i, const char *corpo) {
   if (!r || (*r != '[' && *r != '{')) {
     addon[i].capPresumida = 1;
     addon[i].soVivo = manifestoSoVivo(corpo, addon[i].canal, addon[i].nCanal);
+    if (sessao_bc_ativa() && !ehAddonBestCineOficial(addon[i].base)) {
+      __atomic_store_n(&addon[i].fonte, 0, __ATOMIC_RELAXED);
+    }
     __atomic_store_n(&addon[i].sondado, 1, __ATOMIC_RELEASE);
     printf("[addons] %s: manifesto sem \"resources\" legivel; capacidades ficam supostas%s\n",
            addon[i].nome, addon[i].soVivo ? " soVivo=1" : "");
@@ -2178,6 +2193,22 @@ static void capacidadesDoManifesto(int i, const char *corpo) {
       free(trecho); } }
   lerDeclaracao(corpo, r, "meta", addon[i].metaTipos, addon[i].metaPref, &addon[i].nMetaPref);
   lerDeclaracao(corpo, r, "stream", addon[i].streamTipos, addon[i].streamPref, &addon[i].nStreamPref);
+  // BestCine TV (Camadas 1 e 2): addons externos recebidos via Conta Nuvio sao
+  // estritamente somente-catalogo. Qualquer addon externo que declare "stream"
+  // e bloqueado tanto para streams quanto para catalogos/busca.
+  if (sessao_bc_ativa() && !ehAddonBestCineOficial(addon[i].base)) {
+    int declarouStream = str;
+    str = 0;
+    if (declarouStream) {
+      cat = 0;
+      leg = 0;
+      met = 0;
+      printf("[addons] %s: bloqueado no BestCine TV (addon externo declara stream)\n",
+             addon[i].nome);
+    } else if (!cat && js_array(corpo, NULL, "catalogs") != NULL) {
+      cat = 1;
+    }
+  }
   addon[i].catalogo = cat;
   // Atomico: a descoberta pode republicar o manifesto (addons_manifesto_lido)
   // enquanto um fio da busca le fonte em semStreamSondado.
@@ -2613,6 +2644,8 @@ static int semSegunda(const AddonPedido *a) {
 }
 static int aceitaStream(const AddonPedido *p, const char *tipo, const char *id) {
   if (!p->ativo || !p->fonte) return 0;
+  // Camada 2 (BestCine TV): nunca consultar addons externos para streams.
+  if (sessao_bc_ativa() && !ehAddonBestCineOficial(p->base)) return 0;
   // Canais ao vivo exclusivos BestCine (/bestcine-tv/stream/:id.json)
   if (id && !strncmp(id, "bestcine_tv_", 12) && strstr(p->base, "/bc_") != NULL)
     return 1;
@@ -4087,9 +4120,15 @@ int addons_alternar(int i) {
   char base[NV_ADDON_URL_MAX] = "";
   pthread_mutex_lock(&addonTrava);
   if (i >= 0 && i < nAddon) snprintf(base, sizeof base, "%s", addon[i].base);
+  // BestCine TV: impede desligar o addon oficial do BestCine (mantem streams e TV ao Vivo ativos).
+  if (sessao_bc_ativa() && base[0] && ehAddonBestCineOficial(base)) {
+    pthread_mutex_unlock(&addonTrava);
+    return 1;
+  }
   r = alternarSemTrava(i);
   pthread_mutex_unlock(&addonTrava);
-  if (base[0]) sync_sujar_addons(base);
+  // BestCine TV e somente leitura para addons na Conta Nuvio (nunca envia toggles da TV).
+  if (base[0] && !sessao_bc_ativa()) sync_sujar_addons(base);
   return r;
 }
 

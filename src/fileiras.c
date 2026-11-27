@@ -112,7 +112,8 @@ static char donoAuto[128];
 static unsigned revisao;
 // Lista COMPLETA e identificada da conta deste perfil. So em memoria: impede
 // que uma foto antiga da Home recrie catalogos que acabamos de apagar.
-#define FIL_ADDONS_MAX ADDONS_MAX
+// Folga +4 para catalogos nativos do BestCine (bestcine_tmdb_br, bestcine_builtin_cinemeta).
+#define FIL_ADDONS_MAX (ADDONS_MAX + 4)
 static struct { char id[FIL_CHAVE], base[NV_ADDON_URL_MAX]; } addonsConta[FIL_ADDONS_MAX];
 static int nAddonsConta = -1, addonsContaCompleta, addonsContaVinculada;
 static unsigned addonsContaVersao;
@@ -696,6 +697,7 @@ int fil_adicionar(int i, int *estado) {
   // tela dizia "Added to Home" e a linha ficava em "Not on Home".
   linhas[i].ocultaConta = 0;
   linhas[i].nova = 0;
+  if (!linhas[i].semAddon) linhas[i].semDecl = 0;
   for (j = nLinhas - 1; j >= 0; j--) if (!linhas[j].oculta && j != i) { ultimo = j; break; }
   // Ja esta depois do ultimo ligado: nao ha para onde ir.
   if (ultimo >= 0 && i < ultimo) {

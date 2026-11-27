@@ -6,7 +6,7 @@
 #include <time.h>
 
 #ifndef NV_BESTCINE_URL
-#define NV_BESTCINE_URL "https://example.invalid"
+#define NV_BESTCINE_URL ""
 #endif
 #ifndef NV_SUPABASE_URL
 #define NV_SUPABASE_URL ""
@@ -15,7 +15,7 @@
 #define NV_SUPABASE_ANON_KEY ""
 #endif
 #ifndef NV_TV_LOGIN_BASE
-#define NV_TV_LOGIN_BASE "https://example.invalid/tv"
+#define NV_TV_LOGIN_BASE ""
 #endif
 #ifndef NV_TRAKT_CLIENT_ID
 #define NV_TRAKT_CLIENT_ID ""
@@ -117,7 +117,10 @@ char *nuvem_post(const char *caminho, const char *corpoJson,
 char *nuvem_rpc_com(const char *funcao, const char *corpoJson,
                     const char *bearer, int *status) {
   char caminho[300];
+  if (status) *status = 0;
   if (!funcao || !*funcao) return NULL;
+  // Nunca envia token nativo BestCine (bc_/usr_) para o Supabase do Nuvio.
+  if (bearer && (strncmp(bearer, "bc_", 3) == 0 || strncmp(bearer, "usr_", 4) == 0)) return NULL;
   snprintf(caminho, sizeof caminho, "/rest/v1/rpc/%s", funcao);
   return nuvem_post(caminho, corpoJson, bearer, status);
 }

@@ -43,6 +43,7 @@ TRS=$(valor TRAKT_CLIENT_SECRET)
 SMK=$(valor SIMKL_CLIENT_ID)
 SMA=$(valor SIMKL_APP_NAME)
 TMD=$(valor TMDB_API_KEY)
+BCU=$(valor BESTCINE_SERVER_URL)
 BCS=$(valor BESTCINE_CLIENT_SECRET)
 # Seekr exige a chave de cada pessoa nos Ajustes; nunca embutir a do pacote.
 SKR=""
@@ -71,10 +72,9 @@ if [ "$VER" != "$VERT" ]; then
   echo "env.sh: appinfo.json diz $VER e tizen-config.xml diz $VERT -- alinhe antes de compilar" >&2; exit 2
 fi
 
-# BestCine TV autentica direto em https://example.invalid via QR Code
-# (sem depender de credenciais Supabase/Nuvio no build).
-if [ -z "$TVB" ]; then
-  TVB="https://example.invalid/tv"
+# URL do servidor e pagina de vinculo TV injetados via local.properties / GitHub Secrets.
+if [ -z "$TVB" ] && [ -n "$BCU" ]; then
+  TVB="${BCU%/}/tv"
 fi
 if [ -z "$SMA" ]; then
   SMA="BestCine"
@@ -88,6 +88,7 @@ fi
 if [ "$1" = "--env-file" ]; then
   [ -n "$2" ] || { echo "env.sh --env-file precisa do caminho" >&2; exit 2; }
   {
+    printf 'NV_BESTCINE_URL=%s\n' "$BCU"
     printf 'NV_SUPABASE_URL=%s\n' "$URL"
     printf 'NV_SUPABASE_ANON_KEY=%s\n' "$KEY"
     printf 'NV_TV_LOGIN_BASE=%s\n' "$TVB"
@@ -106,5 +107,5 @@ if [ "$1" = "--env-file" ]; then
   exit 0
 fi
 
-printf -- '-DNV_SUPABASE_URL=\\"%s\\" -DNV_SUPABASE_ANON_KEY=\\"%s\\" -DNV_TV_LOGIN_BASE=\\"%s\\" -DNV_TRAKT_CLIENT_ID=\\"%s\\" -DNV_TRAKT_CLIENT_SECRET=\\"%s\\" -DNV_SIMKL_CLIENT_ID=\\"%s\\" -DNV_SIMKL_APP=\\"%s\\" -DNV_TMDB_API_KEY=\\"%s\\" -DNV_BESTCINE_CLIENT_SECRET=\\"%s\\" -DNV_SEEKR_API_KEY=\\"%s\\" -DNV_REC_URL=\\"%s\\" -DNV_DISCORD_CLIENT_ID=\\"%s\\" -DNV_VERSAO=\\"%s\\"' \
-  "$URL" "$KEY" "$TVB" "$TRK" "$TRS" "$SMK" "$SMA" "$TMD" "$BCS" "$SKR" "$REC" "$DSC" "$VER"
+printf -- '-DNV_BESTCINE_URL=\\"%s\\" -DNV_SUPABASE_URL=\\"%s\\" -DNV_SUPABASE_ANON_KEY=\\"%s\\" -DNV_TV_LOGIN_BASE=\\"%s\\" -DNV_TRAKT_CLIENT_ID=\\"%s\\" -DNV_TRAKT_CLIENT_SECRET=\\"%s\\" -DNV_SIMKL_CLIENT_ID=\\"%s\\" -DNV_SIMKL_APP=\\"%s\\" -DNV_TMDB_API_KEY=\\"%s\\" -DNV_BESTCINE_CLIENT_SECRET=\\"%s\\" -DNV_SEEKR_API_KEY=\\"%s\\" -DNV_REC_URL=\\"%s\\" -DNV_DISCORD_CLIENT_ID=\\"%s\\" -DNV_VERSAO=\\"%s\\"' \
+  "$BCU" "$URL" "$KEY" "$TVB" "$TRK" "$TRS" "$SMK" "$SMA" "$TMD" "$BCS" "$SKR" "$REC" "$DSC" "$VER"

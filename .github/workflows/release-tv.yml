@@ -79,7 +79,10 @@ jobs:
           SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           BESTCINE_CLIENT_SECRET: ${{ secrets.BESTCINE_CLIENT_SECRET }}
+          BESTCINE_SERVER_URL: ${{ secrets.BESTCINE_SERVER_URL }}
           DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          NUVIO_SUPABASE_URL: ${{ secrets.NUVIO_SUPABASE_URL }}
+          NUVIO_SUPABASE_ANON_KEY: ${{ secrets.NUVIO_SUPABASE_ANON_KEY }}
         run: |
           umask 077
           {
@@ -88,7 +91,10 @@ jobs:
             [ -n "$SIMKL_CLIENT_ID" ] && printf 'SIMKL_CLIENT_ID=%s\n' "$SIMKL_CLIENT_ID"
             [ -n "$TMDB_API_KEY" ] && printf 'TMDB_API_KEY=%s\n' "$TMDB_API_KEY"
             [ -n "$BESTCINE_CLIENT_SECRET" ] && printf 'BESTCINE_CLIENT_SECRET=%s\n' "$BESTCINE_CLIENT_SECRET"
+            [ -n "$BESTCINE_SERVER_URL" ] && printf 'BESTCINE_SERVER_URL=%s\n' "$BESTCINE_SERVER_URL"
             [ -n "$DISCORD_CLIENT_ID" ] && printf 'DISCORD_CLIENT_ID=%s\n' "$DISCORD_CLIENT_ID"
+            [ -n "$NUVIO_SUPABASE_URL" ] && printf 'NUVIO_SUPABASE_URL=%s\n' "$NUVIO_SUPABASE_URL"
+            [ -n "$NUVIO_SUPABASE_ANON_KEY" ] && printf 'NUVIO_SUPABASE_ANON_KEY=%s\n' "$NUVIO_SUPABASE_ANON_KEY"
             printf 'SIMKL_APP_NAME=BestCine\n'
           } > local.properties
 
@@ -111,6 +117,10 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           tail -n 80 build-webos.log >> "$GITHUB_STEP_SUMMARY" || true
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Limpar local.properties temporario
+        if: always()
+        run: rm -f local.properties
 
       - name: Upload artefatos LG webOS
         uses: actions/upload-artifact@v4
@@ -173,7 +183,10 @@ jobs:
           SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           BESTCINE_CLIENT_SECRET: ${{ secrets.BESTCINE_CLIENT_SECRET }}
+          BESTCINE_SERVER_URL: ${{ secrets.BESTCINE_SERVER_URL }}
           DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          NUVIO_SUPABASE_URL: ${{ secrets.NUVIO_SUPABASE_URL }}
+          NUVIO_SUPABASE_ANON_KEY: ${{ secrets.NUVIO_SUPABASE_ANON_KEY }}
         run: |
           umask 077
           {
@@ -182,7 +195,10 @@ jobs:
             [ -n "$SIMKL_CLIENT_ID" ] && printf 'SIMKL_CLIENT_ID=%s\n' "$SIMKL_CLIENT_ID"
             [ -n "$TMDB_API_KEY" ] && printf 'TMDB_API_KEY=%s\n' "$TMDB_API_KEY"
             [ -n "$BESTCINE_CLIENT_SECRET" ] && printf 'BESTCINE_CLIENT_SECRET=%s\n' "$BESTCINE_CLIENT_SECRET"
+            [ -n "$BESTCINE_SERVER_URL" ] && printf 'BESTCINE_SERVER_URL=%s\n' "$BESTCINE_SERVER_URL"
             [ -n "$DISCORD_CLIENT_ID" ] && printf 'DISCORD_CLIENT_ID=%s\n' "$DISCORD_CLIENT_ID"
+            [ -n "$NUVIO_SUPABASE_URL" ] && printf 'NUVIO_SUPABASE_URL=%s\n' "$NUVIO_SUPABASE_URL"
+            [ -n "$NUVIO_SUPABASE_ANON_KEY" ] && printf 'NUVIO_SUPABASE_ANON_KEY=%s\n' "$NUVIO_SUPABASE_ANON_KEY"
             printf 'SIMKL_APP_NAME=BestCine\n'
           } > local.properties
 
@@ -229,6 +245,10 @@ jobs:
           tail -n 80 build-tpk.log >> "$GITHUB_STEP_SUMMARY" || true
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Limpar local.properties temporario
+        if: always()
+        run: rm -f local.properties
+
       - name: Upload artefatos Samsung TPK
         uses: actions/upload-artifact@v4
         with:
@@ -274,7 +294,10 @@ jobs:
           SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           BESTCINE_CLIENT_SECRET: ${{ secrets.BESTCINE_CLIENT_SECRET }}
+          BESTCINE_SERVER_URL: ${{ secrets.BESTCINE_SERVER_URL }}
           DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          NUVIO_SUPABASE_URL: ${{ secrets.NUVIO_SUPABASE_URL }}
+          NUVIO_SUPABASE_ANON_KEY: ${{ secrets.NUVIO_SUPABASE_ANON_KEY }}
         run: |
           umask 077
           {
@@ -283,7 +306,10 @@ jobs:
             [ -n "$SIMKL_CLIENT_ID" ] && printf 'SIMKL_CLIENT_ID=%s\n' "$SIMKL_CLIENT_ID"
             [ -n "$TMDB_API_KEY" ] && printf 'TMDB_API_KEY=%s\n' "$TMDB_API_KEY"
             [ -n "$BESTCINE_CLIENT_SECRET" ] && printf 'BESTCINE_CLIENT_SECRET=%s\n' "$BESTCINE_CLIENT_SECRET"
+            [ -n "$BESTCINE_SERVER_URL" ] && printf 'BESTCINE_SERVER_URL=%s\n' "$BESTCINE_SERVER_URL"
             [ -n "$DISCORD_CLIENT_ID" ] && printf 'DISCORD_CLIENT_ID=%s\n' "$DISCORD_CLIENT_ID"
+            [ -n "$NUVIO_SUPABASE_URL" ] && printf 'NUVIO_SUPABASE_URL=%s\n' "$NUVIO_SUPABASE_URL"
+            [ -n "$NUVIO_SUPABASE_ANON_KEY" ] && printf 'NUVIO_SUPABASE_ANON_KEY=%s\n' "$NUVIO_SUPABASE_ANON_KEY"
             printf 'SIMKL_APP_NAME=BestCine\n'
           } > local.properties
 
@@ -306,6 +332,10 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           tail -n 80 build-wgt.log >> "$GITHUB_STEP_SUMMARY" || true
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Limpar local.properties temporario
+        if: always()
+        run: rm -f local.properties
 
       - name: Upload artefato Samsung WGT
         uses: actions/upload-artifact@v4
@@ -381,7 +411,10 @@ jobs:
           SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           BESTCINE_CLIENT_SECRET: ${{ secrets.BESTCINE_CLIENT_SECRET }}
+          BESTCINE_SERVER_URL: ${{ secrets.BESTCINE_SERVER_URL }}
           DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          NUVIO_SUPABASE_URL: ${{ secrets.NUVIO_SUPABASE_URL }}
+          NUVIO_SUPABASE_ANON_KEY: ${{ secrets.NUVIO_SUPABASE_ANON_KEY }}
         run: |
           umask 077
           {
@@ -390,7 +423,10 @@ jobs:
             [ -n "$SIMKL_CLIENT_ID" ] && printf 'SIMKL_CLIENT_ID=%s\n' "$SIMKL_CLIENT_ID"
             [ -n "$TMDB_API_KEY" ] && printf 'TMDB_API_KEY=%s\n' "$TMDB_API_KEY"
             [ -n "$BESTCINE_CLIENT_SECRET" ] && printf 'BESTCINE_CLIENT_SECRET=%s\n' "$BESTCINE_CLIENT_SECRET"
+            [ -n "$BESTCINE_SERVER_URL" ] && printf 'BESTCINE_SERVER_URL=%s\n' "$BESTCINE_SERVER_URL"
             [ -n "$DISCORD_CLIENT_ID" ] && printf 'DISCORD_CLIENT_ID=%s\n' "$DISCORD_CLIENT_ID"
+            [ -n "$NUVIO_SUPABASE_URL" ] && printf 'NUVIO_SUPABASE_URL=%s\n' "$NUVIO_SUPABASE_URL"
+            [ -n "$NUVIO_SUPABASE_ANON_KEY" ] && printf 'NUVIO_SUPABASE_ANON_KEY=%s\n' "$NUVIO_SUPABASE_ANON_KEY"
             printf 'SIMKL_APP_NAME=BestCine\n'
           } > local.properties
 
@@ -451,6 +487,10 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           tail -n 80 build-android.log >> "$GITHUB_STEP_SUMMARY" || true
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Limpar local.properties temporario
+        if: always()
+        run: rm -f local.properties
 
       - name: Upload artefatos Android TV
         uses: actions/upload-artifact@v4

@@ -886,6 +886,12 @@ namespace NuvioTpk
             if (abertas.Count == 0) return null;
             // Background eviction may skip OnTerminate. A steady run or the last
             // paused/unfocused state is normal; unfinished startup stages still warn.
+            // Preload/install launches that stayed invisible & paused until the TV
+            // closed them never showed a broken window to the user — do not false-alarm.
+            bool nuncaMostrou = terminou && ultimaNota != null &&
+                ultimaNota.Contains("visible=False") && ultimaNota.Contains("paused=True") &&
+                ultimaNota.Contains("frames=0");
+            if (nuncaMostrou) return null;
             bool emSegundoPlano = ultimaNota != null &&
                 (ultimaNota.Contains("paused=True") || ultimaNota.Contains("focus=False"));
             if (terminou || estavel || emSegundoPlano)

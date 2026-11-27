@@ -17,7 +17,9 @@
 #include "rede.h"
 #include "sync.h"
 #include "traktauth.h"
+#include <SDL2/SDL.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define SONDA_MS 2000u
@@ -360,18 +362,80 @@ void ilhasinais_perfil_trocado(void) {
 }
 
 // --- rede e addons -----------------------------------------------------------------
-static void rede(void) {
+// Sonda leve de conectividade: antes de exibir "Sem internet" na Samsung Tizen /
+// webOS / Android TV, confirma em segundo plano contra endpoints leves e
+// confiaveis (evita falso aviso quando 2 hosts externos falham ou em Ajustes).
+// Enquanto realmente estiver offline, retesta a cada 15 s para recuperar
+// automaticamente assim que o Wi-Fi voltar, mesmo sem o usuario navegar.
+#define REDE_SONDA_OFFLINE_MS 15000u
+static volatile int redeSondaAtiva;
+static volatile int redeSondaConfirmouOff;
+static int redeAvisoMostrado;
+static Uint32 redeUltimaSondaMs;
+
+static int redeSondaFio(void *arg) {
+  int st = 0;
+  char *r = NULL;
+  (void)arg;
+#ifdef __EMSCRIPTEN__
+  r = rede_baixar_st("https://bestcine.github.io/latest-bestcine-tv.json", 5, NULL, &st);
+  free(r);
+#else
+  // HTTP 204 simples: sem dependencia de TLS 1.3 (funciona ate no Tizen 4.0 de 2018).
+  r = rede_baixar_st("http://connectivitycheck.gstatic.com/generate_204", 4, NULL, &st);
+  free(r);
+  if (st <= 0) {
+    r = rede_baixar_st("https://bestcine.github.io/latest-bestcine-tv.json", 5, NULL, &st);
+    free(r);
+  }
+#endif
+  if (st > 0) {
+    rede_saude_nota(0, "https://connectivitycheck.gstatic.com/generate_204");
+    __atomic_store_n(&redeSondaConfirmouOff, 0, __ATOMIC_RELEASE);
+  } else {
+    __atomic_store_n(&redeSondaConfirmouOff, 1, __ATOMIC_RELEASE);
+  }
+  __atomic_store_n(&redeSondaAtiva, 0, __ATOMIC_RELEASE);
+  return 0;
+}
+
+static void redeDispararSonda(Uint32 agora) {
+  if (__atomic_exchange_n(&redeSondaAtiva, 1, __ATOMIC_ACQ_REL)) return;
+  redeUltimaSondaMs = agora ? agora : 1;
+  SDL_Thread *t = SDL_CreateThread(redeSondaFio, "nv-redesonda", NULL);
+  if (t) SDL_DetachThread(t);
+  else {
+    __atomic_store_n(&redeSondaConfirmouOff, 1, __ATOMIC_RELEASE);
+    __atomic_store_n(&redeSondaAtiva, 0, __ATOMIC_RELEASE);
+  }
+}
+
+static void rede(Uint32 agora) {
   static unsigned visto;
   unsigned s = rede_saude_seq();
-  if (s == visto) return;
-  visto = s;
-  // A MESMA CHAVE nos dois: "de volta" troca o "sem internet" no lugar se ele
-  // ainda estiver na pilula, em vez de entrar na fila atras dele.
-  if (rede_saude_offline())
+  int off = rede_saude_offline();
+  if (s != visto) {
+    visto = s;
+    if (off) {
+      // Nao pisca "Sem internet" de imediato: valida primeiro na sonda leve.
+      __atomic_store_n(&redeSondaConfirmouOff, 0, __ATOMIC_RELEASE);
+      redeDispararSonda(agora);
+    } else if (redeAvisoMostrado) {
+      redeAvisoMostrado = 0;
+      __atomic_store_n(&redeSondaConfirmouOff, 0, __ATOMIC_RELEASE);
+      ilha_avisar("rede", ILHA_OK, "aj_wifi", i18n("Internet de volta"), 3000u, 0);
+    }
+  }
+  if (!off) return;
+  if (!redeAvisoMostrado && __atomic_load_n(&redeSondaConfirmouOff, __ATOMIC_ACQUIRE)) {
+    redeAvisoMostrado = 1;
     ilha_avisar("rede", ILHA_ERRO, "aj_wifi-off",
                 i18n("Sem internet. Mostrando o que já estava salvo."), 60u * 60u * 1000u, 0);
-  else
-    ilha_avisar("rede", ILHA_OK, "aj_wifi", i18n("Internet de volta"), 3000u, 0);
+  }
+  if (!__atomic_load_n(&redeSondaAtiva, __ATOMIC_ACQUIRE) &&
+      (!redeUltimaSondaMs || agora - redeUltimaSondaMs >= REDE_SONDA_OFFLINE_MS)) {
+    redeDispararSonda(agora);
+  }
 }
 
 static void addonFora(void) {
@@ -394,7 +458,7 @@ void ilhasinais_passo(Uint32 agora) {
   extplayer_passo(agora);
 #endif
   enquete_passo(agora);
-  rede();
+  rede(agora);
   addonFora();
   sincronia(agora);   // a atividade e renovada por quadro
   if (ultSonda && agora - ultSonda < SONDA_MS) return;

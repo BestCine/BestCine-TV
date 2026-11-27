@@ -1344,11 +1344,58 @@ static void *rodar(void *u) {
       snprintf(addonsRem[1].nome, sizeof addonsRem[1].nome, "OpenSubtitles v3");
       addonsRem[1].ativo = 1;
       nAddonsRem = 2;
-      nAddonsTogglesRem = 2;
-      addonsTogglesRem[0] = addonsRem[0];
-      addonsTogglesRem[1] = addonsRem[1];
+
+      // Conta Nuvio opcional: leitura somente de addons externos (somente catalogos sao aceitos
+      // em addons.c/descoberta.c; streams externos bloqueados em 2 camadas; TV nunca faz push).
+      if (sessao_nuvio_ativa() && nuvem_supabase_pronta() && perfilDoCicloAtual()) {
+        char nvUser[80];
+        if (sessao_nuvio_usuario_copiar(nvUser, sizeof nvUser) && nvUser[0]) {
+          char dono[160], consulta[400];
+          int stAdd = 0;
+          char *rAdd;
+          nuvem_url_escapar(nvUser, dono, sizeof dono);
+          snprintf(consulta, sizeof consulta,
+                   "user_id=eq.%s&profile_id=eq.1&select=*&order=sort_order.asc",
+                   dono);
+          rAdd = sessao_tabela("addons", consulta, &stAdd);
+          if (ok2xx(rAdd, stAdd) && perfilDoCicloAtual()) {
+            AddonRemoto *extras = (AddonRemoto *)calloc(SY_ADD_MAX, sizeof *extras);
+            char *urlBuf = (char *)malloc(SY_URL_LEITURA);
+            if (extras && urlBuf) {
+              int ne = lerAddonsPara(rAdd, extras, urlBuf);
+              int j, adicionados = 0;
+              for (j = 0; j < ne && nAddonsRem < SY_ADD_MAX; j++) {
+                const char *rawUrl;
+                const char *bcBaseUrl = nuvem_bestcine_url();
+                if (!extras[j].ativo || !extras[j].url[0]) continue;
+                rawUrl = nv_longa_bruto(extras[j].url);
+                if (!rawUrl) rawUrl = extras[j].url;
+                if (strstr(rawUrl, "/bc_") ||
+                    (bcBaseUrl && bcBaseUrl[0] && strstr(rawUrl, bcBaseUrl)) ||
+                    strstr(rawUrl, "opensubtitles-v3.strem.io"))
+                  continue;
+                if (addonsAchar(addonsRem, nAddonsRem, extras[j].url) >= 0) continue;
+                addonsRem[nAddonsRem++] = extras[j];
+                adicionados++;
+              }
+              if (adicionados > 0) {
+                printf("[sync] Conta Nuvio (BestCine TV): +%d addon(s) externo(s) recebidos (filtro somente-catalogo ativo)\n",
+                       adicionados);
+              }
+            }
+            free(extras);
+            free(urlBuf);
+          } else if (stAdd) {
+            printf("[sync] Conta Nuvio (BestCine TV): leitura de addons HTTP %d; mantendo apenas BestCine\n", stAdd);
+          }
+          free(rAdd);
+        }
+      }
+
+      nAddonsTogglesRem = nAddonsRem;
+      memcpy(addonsTogglesRem, addonsRem, (size_t)nAddonsRem * sizeof *addonsTogglesRem);
       temAddonsRem = 1;
-      addonsCiclo = 1;
+      addonsCiclo = 0;
       PRONTO_PUBLICAR(addonsCedo, 1);
       {
         char msg[200];
@@ -1358,6 +1405,23 @@ static void *rodar(void *u) {
                  nome[0] ? nome : "Conta BestCine",
                  plano[0] ? plano : "gratuito");
         resumoFixo(msg);
+      }
+    }
+    // Conta Nuvio opcional (Ajustes -> Rastreamento): sincroniza Progresso,
+    // Biblioteca (Favoritos), Assistidos e recebe addons externos somente de catalogo.
+    if (sessao_nuvio_ativa() && nuvem_supabase_pronta() && perfilDoCicloAtual()) {
+      nProgresso = progressoPuxar(perfilDoCiclo, sessaoDoCiclo);
+      cBiblio = puxarBiblioteca(perfilDoCiclo, &bibBlob);
+      cBiblio = guardarOuCopia(CC_BIBLIOTECA, perfilDoCiclo, cBiblio, &bibBlob);
+      if (cBiblio >= 0) temBibBlob = 1;
+      cVistos = puxarVistos(perfilDoCiclo, &vistosBlob);
+      cVistos = guardarOuCopia(CC_VISTOS, perfilDoCiclo, cVistos, &vistosBlob);
+      if (cVistos >= 0) temVistosBlob = 1;
+      if (perfilDoCicloAtual()) {
+        if (!ajustes_hist_conta()) sujoProgresso = 0;
+        else if (syncprog_empurrar_sessao(perfilDoCiclo, sessaoDoCiclo) >= 0) sujoProgresso = 0;
+        contapend_enviar();
+        contapend_reenviar();
       }
     }
     estado = SYNC_PRONTO;
@@ -2062,7 +2126,8 @@ static void *empurrarPonto(void *arg) {
 }
 void sync_sujar_progresso(void) {
   sujoProgresso = 1;
-  if (!sessao_logada() || !ajustes_hist_conta() || nuvem_freio_ativo() ||
+  if (!sessao_logada() || (sessao_bc_ativa() && !sessao_nuvio_ativa()) ||
+      !ajustes_hist_conta() || nuvem_freio_ativo() ||
       __atomic_exchange_n(&pontoEmVoo, 1, __ATOMIC_ACQUIRE)) return;
   pontoPedido.perfil = perfis_ativo();
   pontoPedido.sessao = nv_perfil_sessao_ler();

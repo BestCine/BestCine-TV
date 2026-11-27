@@ -60,6 +60,30 @@ int         sessao_bc_atualizar_status(void);
 // e atualiza plano/nome em tempo real sem travar a interface ou o player.
 void        sessao_bc_vigiar(unsigned agoraMs);
 
+// Conta Nuvio opcional (Ajustes -> Rastreamento): sincroniza Continuar assistindo,
+// Assistidos, Biblioteca e recebe addons externos somente de catalogo (leitura apenas).
+typedef enum {
+  NV_NUVIO_PARADO = 0,
+  NV_NUVIO_PEDINDO,
+  NV_NUVIO_AGUARDANDO,
+  NV_NUVIO_TROCANDO,
+  NV_NUVIO_LIGADO,
+  NV_NUVIO_ERRO
+} NvNuvioEstado;
+
+int           sessao_nuvio_disponivel(void);
+int           sessao_nuvio_ativa(void);
+int           sessao_nuvio_usuario_copiar(char *dst, size_t n);
+NvNuvioEstado sessao_nuvio_estado(void);
+const char   *sessao_nuvio_codigo(void);
+const char   *sessao_nuvio_url(void);
+const char   *sessao_nuvio_erro(void);
+void          sessao_nuvio_comecar(void);
+void          sessao_nuvio_cancelar(void);
+void          sessao_nuvio_desconectar(void);
+// Retorna 1 no quadro em que a Conta Nuvio acabou de conectar (para disparar sync_iniciar).
+int           sessao_nuvio_passo(unsigned agoraMs);
+
 // TOKEN DE ACESSO CRU, para quem precisa se autenticar em um servidor que NAO
 // e o Supabase do Nuvio. Hoje so o servico de recomendacoes (recomenda.c), que
 // manda `Authorization: Bearer <isto>` e pergunta ao proprio Supabase de quem

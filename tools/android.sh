@@ -56,6 +56,9 @@ done
 echo "[2/5] arte e fontes -> $EST/assets"
 rm -rf "$EST/assets"; mkdir -p "$EST/assets"
 NUVIO_ARTE_ESTAGIO="build/android/assets/art" bash tools/tizen-art.sh >/dev/null
+if [ "${NUVIO_ANDROID_OTIMIZAR_ARTE:-1}" = 1 ]; then
+  bash tools/android/otimizar-arte.sh "$EST/assets/art"
+fi
 mkdir -p "$EST/assets/fonts"
 cp deploy/app/fonts/* "$EST/assets/fonts/"
 mkdir -p "$EST/assets/licencas"

@@ -278,6 +278,7 @@ static const char *uxSinonimos(int op) {
     case AJ_HERO_NOTAS: return "nota notas imdb destaque hero avaliacao rating ratings esconder mostrar";
     case AJ_HERO_ANO: return "ano destaque hero lancamento year data esconder mostrar";
     case AJ_HERO_PASTA_DETALHES: return "pasta colecao detalhes destaque hero folder collection details title";
+    case AJ_NUVIO_CONTA: return "nuvio conta rastreamento sincronizar sync historico continuar assistindo favoritos biblioteca";
     case AJ_BC_CONTA: return "bestcine conta plano assinatura vitalicio renovar atualizar catalogos usuario email";
     case AJ_BC_SELOS_NATIVOS: return "selos nativos posteres capas nota genero hoje lancamento badges";
     case AJ_BC_LANCAMENTOS: case AJ_BC_MOMENTO: case AJ_BC_SAZONAL: case AJ_BC_TEMPO_ATIVO:
@@ -335,7 +336,7 @@ static const char *uxCaminhoAntigo(int op) {
     case AJ_EM_SERVIDOR: case AJ_EM_ENTRAR: case AJ_EM_SAIR:
     case AJ_PX_ENTRAR: case AJ_PX_SERVIDOR: case AJ_PX_SAIR:
     case AJ_PERFIL_ATIVO: case AJ_SYNC: case AJ_BC_CONTA: case AJ_BC_DNS: case AJ_PERFIL_PESQ: case AJ_PERFIL_EDITAR: case AJ_PERFIL_INFANTIL: case AJ_SAIR:
-    case AJ_TRAKT: case AJ_SIMKL: case AJ_DISCORD: case AJ_SALVOS_DEST: case AJ_CW_FONTE: case AJ_CW_PROXIMO: case AJ_ENQUETES:
+    case AJ_NUVIO_CONTA: case AJ_TRAKT: case AJ_SIMKL: case AJ_DISCORD: case AJ_SALVOS_DEST: case AJ_CW_FONTE: case AJ_CW_PROXIMO: case AJ_ENQUETES:
     case AJ_HIST_CONTA: case AJ_SOCIAL:
       return "Contas e serviços";
     case AJ_FONTE_MANUAL: case AJ_FONTE_AUTO: case AJ_FONTE_REPOR: case AJ_FONTE_PRIORIDADE: case AJ_FONTE_TOCAR_CONFERINDO: case AJ_FONTE_AQUECER: case AJ_FONTE_CONFERIR_VARIAS: case AJ_FONTE_PREPARAR: case AJ_FONTE_PRECARREGAR:

@@ -1020,7 +1020,8 @@ static float ajPressao(void) {
 }
 // O estado curto de uma acao leva o ponto no acento quando e um VINCULO ativo.
 static int ajEstadoLigado(int op) {
-  return (op == AJ_TRAKT && traktauth_estado() == TRA_LIGADO) ||
+  return (op == AJ_NUVIO_CONTA && sessao_nuvio_ativa()) ||
+         (op == AJ_TRAKT && traktauth_estado() == TRA_LIGADO) ||
          (op == AJ_SIMKL && simklauth_estado() == SMK_LIGADO) ||
          (op == AJ_DISCORD && discord_estado() == DIS_LIGADO);
 }

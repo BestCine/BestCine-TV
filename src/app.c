@@ -5121,6 +5121,7 @@ void app_atualizar(float dt, Uint32 agora) {
   // mesmo com a pessoa ja tendo autorizado no celular.
   traktauth_passo((unsigned)agora);
   discord_passo((unsigned)agora);
+  if (sessao_nuvio_passo((unsigned)agora)) sync_iniciar();
   // PERSONAL SERVERS (servidores.h: Jellyfin, Emby, Plex): the modules fetches on its own workers; the
   // Home is rebuilt when its row snapshot changes or the option flips. One
   // integer compare per frame, no network here.
